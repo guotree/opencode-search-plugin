@@ -70,19 +70,26 @@ opencode plugin add opencode-search-plugin
 ## 升级
 
 ```sh
-opencode plugin update opencode-search-plugin   # 只更新这个包
-opencode plugin update                          # 更新所有过期插件
+# 从 GitHub 安装的
+opencode plugin update github:guotree/opencode-search-plugin
+# 从 npm 安装的
+opencode plugin update opencode-search-plugin
+# 更新所有过期插件
+opencode plugin update
 ```
 
-未固定版本的安装通过 `update` 跟上新版本——先跑 `opencode plugin check` 查看有哪些过期，带上目标则只更新这一个包。固定过的安装——npm 形式的 `@1.0.1`、GitHub 形式的 `#v1.0.1`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。复制的文件则用新版本覆盖旧文件来升级。
+升级目标用的是配置时的说明符：GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`——npm 安装则用包名。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@1.0.1`、GitHub 形式的 `#v1.0.1`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。复制的文件则用新版本覆盖旧文件来升级。
 
 ## 卸载
 
 ```sh
+# 从 GitHub 安装的
 opencode plugin remove github:guotree/opencode-search-plugin
+# 从 npm 安装的
+opencode plugin remove opencode-search-plugin
 ```
 
-传入安装时使用的说明符：`github:guotree/opencode-search-plugin` 或 `opencode-search-plugin`。该命令修改的是全局配置；另外两种安装方式，删掉 `opencode.json(c)` 里的 `plugins` 条目、或删掉复制的 `.ts` 文件即可。`/connect` 里保存的密钥不受影响——重新装回就能继续用——只想关掉其中几家而不是整个插件，用上文的 `disable`。
+同上：传入安装时使用的说明符。该命令修改的是全局配置；另外两种安装方式，删掉 `opencode.json(c)` 里的 `plugins` 条目、或删掉复制的 `.ts` 文件即可。`/connect` 里保存的密钥不受影响——重新装回就能继续用——只想关掉其中几家而不是整个插件，用上文的 `disable`。
 
 ## 密钥
 

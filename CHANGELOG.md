@@ -8,10 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Upgrade and uninstall instructions in both READMEs: `opencode plugin
-  update` and `opencode plugin remove` for package installs, the manual
-  equivalents for a `plugins` entry and a copied file, and a note that
-  `/connect` credentials survive a reinstall.
+- Upgrade and uninstall instructions in both READMEs, one command per
+  install form. The target of `opencode plugin update` and
+  `opencode plugin remove` is the specifier that was configured — a
+  GitHub install rejects its bare package name with `Plugin is not
+  configured` — alongside the manual equivalents for a `plugins` entry
+  and a copied file, and a note that `/connect` credentials survive a
+  reinstall.
 
 ## [1.0.1] - 2026-10-16
 
