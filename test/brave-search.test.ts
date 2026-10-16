@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { loadPlugin, makeHarness } from "./harness"
 
-type Brave = typeof import("../brave-search")
+type Brave = typeof import("../plugins/brave-search")
 
 const NO_KEY: Record<string, string> = { BRAVE_SEARCH_API_KEY: "" }
 
@@ -36,7 +36,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 async function bind(env: Record<string, string> = NO_KEY, events?: ReadonlyArray<{ type: string }>) {
-  const mod = await loadPlugin<Brave>("../brave-search", env)
+  const mod = await loadPlugin<Brave>("../plugins/brave-search", env)
   const harness = makeHarness({
     credentialSequence: [{ type: "key", key: "brave-key" }],
     events,
@@ -52,7 +52,7 @@ afterEach(() => {
 
 describe("brave-search", () => {
   it("does not bind a provider without a key", async () => {
-    const mod = await loadPlugin<Brave>("../brave-search", NO_KEY)
+    const mod = await loadPlugin<Brave>("../plugins/brave-search", NO_KEY)
     const harness = makeHarness()
     await harness.run(mod.effect(harness.ctx))
     expect(harness.providers).toHaveLength(0)
@@ -69,7 +69,7 @@ describe("brave-search", () => {
   })
 
   it("takes the key from the environment when no credential is stored", async () => {
-    const mod = await loadPlugin<Brave>("../brave-search", {
+    const mod = await loadPlugin<Brave>("../plugins/brave-search", {
       BRAVE_SEARCH_API_KEY: "env-key",
     })
     const harness = makeHarness()
@@ -170,7 +170,7 @@ describe("brave-search", () => {
   })
 
   it("rebinds when a credential appears after startup", async () => {
-    const mod = await loadPlugin<Brave>("../brave-search", NO_KEY)
+    const mod = await loadPlugin<Brave>("../plugins/brave-search", NO_KEY)
     const harness = makeHarness({
       credentialSequence: [undefined, { type: "key", key: "later" }],
       events: [{ type: "credential.updated" }],

@@ -26,10 +26,11 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent $PSScriptRoot
-$files = Get-ChildItem -Path $repo -Filter '*-search.ts' -File
+$source = Join-Path $repo 'plugins'
+$files = Get-ChildItem -Path $source -Filter '*-search.ts' -File
 
 if (-not $files) {
-  throw "No *-search.ts files found in $repo"
+  throw "No *-search.ts files found in $source"
 }
 
 if (-not (Test-Path $Destination)) {

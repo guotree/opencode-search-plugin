@@ -26,7 +26,7 @@ afterEach(() => {
  * provider does beyond this is asserted in its own test file.
  */
 describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
-  const modulePath = `../${spec.file}`
+  const modulePath = `../plugins/${spec.file}`
   const noKeyEnv = { [spec.envKey]: "" }
   /** AnySearch has an anonymous tier, so it never gates on a key. */
   const requiresKey = spec.providerID !== "anysearch"

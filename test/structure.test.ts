@@ -8,6 +8,9 @@ const root = fileURLToPath(new URL("..", import.meta.url))
 
 const read = (file: string) => readFileSync(join(root, file), "utf8")
 
+/** A provider's source, which always lives under `plugins/`. */
+const providerSource = (file: string) => read(`plugins/${file}.ts`)
+
 /**
  * The shared blocks below are copied verbatim into every file that needs them,
  * because each file must stay runnable when copied out of this repository on
@@ -70,7 +73,7 @@ const WITH_DATES = ["brave-search", "metaso-search", "querit-search", "serpapi-s
 describe("repository structure", () => {
   it("exposes every provider as a standalone file with no cross-file imports", () => {
     for (const { file } of PROVIDER_CASES) {
-      const source = read(`${file}.ts`)
+      const source = providerSource(file)
       expect(source, `${file} must not import a sibling module`).not.toMatch(
         /from\s+["']\.\.?\//,
       )
@@ -82,7 +85,7 @@ describe("repository structure", () => {
 
   it("names each plugin after its file", () => {
     for (const { file, pluginID } of PROVIDER_CASES) {
-      const source = read(`${file}.ts`)
+      const source = providerSource(file)
       expect(source, `${file} default export`).toContain(
         `export default Plugin.define({ id: "${pluginID}", effect })`,
       )
@@ -95,7 +98,7 @@ describe("repository structure", () => {
     expect(new Set(ids).size).toBe(PROVIDER_CASES.length)
 
     for (const { file, providerID } of PROVIDER_CASES) {
-      const source = read(`${file}.ts`)
+      const source = providerSource(file)
       // The provider ID appears as `editor.add({ id: "..." })` and as the
       // integration ID; both must agree or `/connect` credentials would be
       // stored against an ID the websearch pool never reads.
@@ -106,7 +109,7 @@ describe("repository structure", () => {
 
   it("copies the shared blocks into every file that needs them", () => {
     for (const { file } of PROVIDER_CASES) {
-      const source = read(`${file}.ts`)
+      const source = providerSource(file)
       expect(source, `${file} envInt`).toContain(ENV_INT)
       expect(source, `${file} cache`).toContain(CACHE_BLOCK)
       expect(source, `${file} credential read`).toContain(SOFTEN_BLOCK)
@@ -116,13 +119,13 @@ describe("repository structure", () => {
     }
 
     for (const file of WITH_DATES) {
-      const source = read(`${file}.ts`)
+      const source = providerSource(file)
       expect(source, `${file} date parser`).toContain(DATE_BLOCK)
     }
 
     // Files without a date field must not carry a parser they never call.
     for (const { file } of PROVIDER_CASES.filter((c) => !WITH_DATES.includes(c.file))) {
-      expect(read(`${file}.ts`), `${file} has no date field`).not.toContain("parseSearchDate")
+      expect(providerSource(file), `${file} has no date field`).not.toContain("parseSearchDate")
     }
   })
 
@@ -130,7 +133,7 @@ describe("repository structure", () => {
     const index = read("index.ts")
     for (const { file, providerID } of PROVIDER_CASES) {
       expect(index, `index.ts must import ${file}`).toContain(
-        `import { effect as ${safeName(file)} } from "./${file}"`,
+        `import { effect as ${safeName(file)} } from "./plugins/${file}"`,
       )
       expect(index, `index.ts must register ${providerID}`).toContain(
         `["${providerID}", ${safeName(file)}]`,

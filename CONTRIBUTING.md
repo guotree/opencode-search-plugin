@@ -2,7 +2,16 @@
 
 ## The rule that shapes everything else
 
-Each provider is **one self-contained `.ts` file**. It must run when copied on its own into `~/.config/opencode/plugins/` or `<project>/.opencode/plugins/`, with no build step and no sibling imports.
+Each provider is **one self-contained `.ts` file**, living in `plugins/`:
+
+```text
+index.ts          package entrypoint; composes the nine providers
+plugins/          the providers, each one independently copyable
+test/             contract tests, harness, and structure guards
+scripts/          manual sync into a local OpenCode config
+```
+
+It must run when copied on its own into `~/.config/opencode/plugins/` or `<project>/.opencode/plugins/`, with no build step and no sibling imports.
 
 That is why this repository has no `src/core/` shared library. A shared module would make the source cleaner and the files unusable on their own, so the shared logic is instead **copied verbatim** into every file that needs it.
 
@@ -42,7 +51,7 @@ The plugin ID equals the filename; the provider ID equals the integration ID. Bo
 
 ## Adding a provider
 
-1. Copy the closest existing file to `<name>-search.ts` and change `ID`, the schema, the endpoint, and the mapping.
+1. Copy the closest existing file to `plugins/<name>-search.ts` and change `ID`, the schema, the endpoint, and the mapping.
 2. Keep the shared blocks byte-identical — copy them from an existing file rather than retyping.
 3. Export both `effect` (so `index.ts` can compose it) and `default Plugin.define({ id: "<name>-search", effect })`.
 4. Add an entry to `PROVIDER_CASES` in `test/cases.ts` with a response body and the results it must map to.
@@ -50,7 +59,7 @@ The plugin ID equals the filename; the provider ID equals the integration ID. Bo
 6. Add a row to the provider table and the configuration tables in `README.md`.
 7. `npm run check`.
 
-Before inventing a query parameter, check the provider's own documentation. Two of these plugins shipped knobs that the upstream API silently ignores; `serpapi-search.ts` documents one such removal in a comment.
+Before inventing a query parameter, check the provider's own documentation. Two of these plugins shipped knobs that the upstream API silently ignores; `plugins/serpapi-search.ts` documents one such removal in a comment.
 
 ## Tests
 

@@ -18,7 +18,9 @@ interface BraveModule {
  * emits, and the strings whose lenient parsing invents a wrong year.
  */
 async function timeFor(pageAge: string | undefined): Promise<{ published?: number }> {
-  const mod = await loadPlugin<BraveModule>("../brave-search", { BRAVE_SEARCH_API_KEY: "" })
+  const mod = await loadPlugin<BraveModule>("../plugins/brave-search", {
+    BRAVE_SEARCH_API_KEY: "",
+  })
   const harness = makeHarness({ credentialSequence: [{ type: "key", key: "k" }] })
   await harness.run(mod.effect(harness.ctx))
 
