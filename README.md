@@ -6,6 +6,12 @@ Nine self-contained [OpenCode](https://opencode.ai) v2 plugins that register web
 
 AnySearch · Brave Search · Jina · Linkup · Metaso · Querit · SerpApi · Serper · You.com
 
+## Why this exists
+
+OpenCode v2 ships with five web search providers built in: `exa`, `firecrawl`, `parallel`, `tavily` and `tinyfish`. Outside that set, a much wider field of search APIs offers free quotas or free tiers — enough to run an agent's searches without paying for the privilege.
+
+This repository adds plugins for nine more of them, taking the pool from five providers to fourteen. AnySearch runs without a key at all; the other eight bind only when you supply one, so installing this package never routes a query to a provider that would immediately fail. Which of them are worth your time depends on the free tier each one currently offers, so check a provider's pricing before you rely on it.
+
 ## Install
 
 ### All nine, as a package

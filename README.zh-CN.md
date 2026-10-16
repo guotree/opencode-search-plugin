@@ -6,6 +6,12 @@
 
 AnySearch · Brave Search · Jina · Linkup · Metaso · Querit · SerpApi · Serper · You.com
 
+## 为什么做这个插件
+
+OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。在这个范围之外，还有大量搜索 API 提供免费额度或免费层级，足以支撑 agent 的日常检索而不必为此付费。
+
+本仓库为其中九家补上了插件，把可用池从五个 provider 扩到十四个。AnySearch 无需任何 key 即可使用；其余八家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
+
 ## 安装
 
 ### 一次性装全九个：包安装
