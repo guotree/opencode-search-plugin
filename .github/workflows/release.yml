@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# id-token: write lets npm mint the short-lived OIDC token used by trusted
+# publishing; there is no npm token in repository secrets.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          # Never serve a cached install in a release build.
+          package-manager-cache: false
+
+      # Trusted publishing (OIDC) needs npm 11.5.1 or newer, which the
+      # runner's bundled npm may predate.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install
+        run: npm ci
+
+      # A tag pushed without a matching version bump must fail here rather
+      # than republish an existing version or publish the wrong one.
+      - name: Check tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "Tag v$tag does not match package.json version $version" >&2
+            exit 1
+          fi
+
+      # ci.yml runs for branches and pull requests only, so a tag push is
+      # gated here instead: typecheck plus the full test suite.
+      - name: Check
+        run: npm run check
+
+      - name: Publish
+        run: npm publish --provenance
