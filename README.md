@@ -67,6 +67,23 @@ Loading the package registers all nine, but a provider without a key never joins
 
 `disable` takes the provider IDs listed in the table below.
 
+## Upgrade
+
+```sh
+opencode plugin update opencode-search-plugin   # this package only
+opencode plugin update                          # every outdated plugin
+```
+
+An install without a pinned version follows new releases through `update`; run `opencode plugin check` first to see what is outdated, and pass a target to move only this package. A pinned install — `@1.0.1` on npm, `#v1.0.1` on GitHub — stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A copied file is upgraded by copying the new version over the old one.
+
+## Uninstall
+
+```sh
+opencode plugin remove github:guotree/opencode-search-plugin
+```
+
+Pass the specifier you installed with: `github:guotree/opencode-search-plugin` or `opencode-search-plugin`. The command edits the global configuration; for the other two modes, delete the `plugins` entry from `opencode.json(c)` or delete the copied `.ts` file. Saved `/connect` credentials are untouched — a reinstall finds them again — and to turn off a few providers instead of the whole plugin, use `disable` above.
+
 ## Keys
 
 Every provider except AnySearch needs an API key. Give it one of two ways:

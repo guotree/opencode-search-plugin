@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Upgrade and uninstall instructions in both READMEs: `opencode plugin
+  update` and `opencode plugin remove` for package installs, the manual
+  equivalents for a `plugins` entry and a copied file, and a note that
+  `/connect` credentials survive a reinstall.
+
 ## [1.0.1] - 2026-10-16
 
 Releases are now automated: every `v*` tag publishes to npm through
@@ -72,5 +81,6 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.1
 [1.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.0
