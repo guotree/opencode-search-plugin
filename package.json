@@ -1,0 +1,60 @@
+{
+  "name": "opencode-search-plugin",
+  "version": "1.0.0",
+  "description": "Nine self-contained websearch provider plugins for OpenCode v2: AnySearch, Brave, Jina, Linkup, Metaso, Querit, SerpApi, Serper and You.com.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "websearch",
+    "search",
+    "serp",
+    "agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guotree/opencode-search-plugin.git"
+  },
+  "homepage": "https://github.com/guotree/opencode-search-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/guotree/opencode-search-plugin/issues"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./anysearch-search": "./anysearch-search.ts",
+    "./brave-search": "./brave-search.ts",
+    "./jina-search": "./jina-search.ts",
+    "./linkup-search": "./linkup-search.ts",
+    "./metaso-search": "./metaso-search.ts",
+    "./querit-search": "./querit-search.ts",
+    "./serpapi-search": "./serpapi-search.ts",
+    "./serper-search": "./serper-search.ts",
+    "./youcom-search": "./youcom-search.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "*.ts",
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.30",
+    "effect": "4.0.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

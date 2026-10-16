@@ -1,0 +1,7 @@
+# Keep every text file LF in the working tree.
+#
+# The provider files here are hashed against the copies OpenCode actually
+# loads in ~/.config/opencode/plugins/, so a checkout that silently rewrote
+# line endings would report a false difference for every file. Both sides stay
+# LF, and `git diff` stays a review of content rather than endings.
+* text=auto eol=lf

@@ -17,6 +17,9 @@ const LinkupResponse = Schema.Struct({
   results: Schema.optional(Schema.Array(LinkupResult)),
 })
 
+// The /connect integration ID, and the websearch provider ID it binds to.
+const ID = "linkup"
+
 function toResult(item: typeof LinkupResult.Type) {
   return {
     url: item.url,
@@ -29,7 +32,9 @@ function toResult(item: typeof LinkupResult.Type) {
 type SearchResult = ReturnType<typeof toResult>
 
 function envInt(name: string, fallback: number): number {
-  const value = Number(process.env[name])
+  const raw = (process.env[name] ?? "").trim()
+  if (raw === "") return fallback
+  const value = Number(raw)
   return Number.isFinite(value) && value >= 0 ? value : fallback
 }
 
@@ -75,127 +80,134 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
   }
 }
 
-export default Plugin.define({
-  id: "linkup-search",
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      // Make "Linkup" show up in /connect with an API-key method.
-      yield* ctx.integration.transform((editor) => {
-        editor.update("linkup", (integration) => {
-          integration.name = "Linkup"
-        })
-        editor.method.update({
-          integrationID: "linkup",
-          method: { type: "key", label: "Linkup API key" },
-        })
-        editor.method.update({
-          integrationID: "linkup",
-          method: { type: "env", names: ["LINKUP_API_KEY"] },
-        })
+export const effect = (ctx: Plugin.Context) =>
+  Effect.gen(function* () {
+    // Make "Linkup" show up in /connect with an API-key method.
+    yield* ctx.integration.transform((editor) => {
+      editor.update(ID, (integration) => {
+        integration.name = "Linkup"
+      })
+      editor.method.update({
+        integrationID: ID,
+        method: { type: "key", label: "Linkup API key" },
+      })
+      editor.method.update({
+        integrationID: ID,
+        method: { type: "env", names: ["LINKUP_API_KEY"] },
+      })
+    })
+
+    // The host instantiates this API's failure channel as `unknown`, which would
+    // make the whole plugin effect unrunnable. A credential read must never take
+    // the plugin down: a failed read degrades to "no stored key", and the
+    // environment fallback below applies exactly as it does when the credential
+    // simply does not exist.
+    const soften = <A>(read: Effect.Effect<A, unknown>): Effect.Effect<A | undefined, never> =>
+      read.pipe(Effect.catch(() => Effect.succeed(undefined)))
+
+    // The key comes from the /connect credential, falling back to the
+    // environment. Resolved per call so a rotated key needs no restart.
+    const resolveKey = () =>
+      Effect.gen(function* () {
+        const connection = yield* soften(ctx.integration.connection.active(ID))
+        const credential = connection
+          ? yield* soften(ctx.integration.connection.resolve(connection))
+          : undefined
+        return credential?.type === "key" ? credential.key : process.env.LINKUP_API_KEY
       })
 
-      // The key comes from the /connect credential, falling back to the
-      // environment. Resolved per call so a rotated key needs no restart.
-      const resolveKey = () =>
-        Effect.gen(function* () {
-          const connection = yield* ctx.integration.connection.active("linkup")
-          const credential = connection
-            ? yield* ctx.integration.connection.resolve(connection)
-            : undefined
-          return credential?.type === "key" ? credential.key : process.env.LINKUP_API_KEY
-        })
+    // Linkup is bound to websearch only while a key exists. Deleting the key
+    // unbinds the provider, so `random` can never pick a keyless Linkup.
+    // The transform replays on reload and reads `bound` as it stands then.
+    let bound = Boolean(yield* resolveKey())
 
-      // Linkup is bound to websearch only while a key exists. Deleting the key
-      // unbinds the provider, so `random` can never pick a keyless Linkup.
-      // The transform replays on reload and reads `bound` as it stands then.
-      let bound = Boolean(yield* resolveKey())
+    yield* ctx.websearch.transform((editor) => {
+      if (!bound) return
+      editor.add({
+        id: ID,
+        name: "Linkup",
+        execute: ({ query }) =>
+          Effect.gen(function* () {
+            const queryKey = cacheKey(query)
+            const cached = readCache(queryKey)
+            if (cached) return cached
 
-      yield* ctx.websearch.transform((editor) => {
-        if (!bound) return
-        editor.add({
-          id: "linkup",
-          name: "Linkup",
-          execute: ({ query }) =>
-            Effect.gen(function* () {
-              const queryKey = cacheKey(query)
-              const cached = readCache(queryKey)
-              if (cached) return cached
-
-              // Rechecked per call: binding can lag a key deletion by the
-              // event round-trip, so this keeps that window explicit.
-              const key = yield* resolveKey()
-              if (!key) {
-                return yield* Effect.fail(
-                  new Error("Connect Linkup in /connect, or set LINKUP_API_KEY"),
-                )
-              }
-
-              const response = yield* Effect.tryPromise({
-                try: () =>
-                  fetch("https://api.linkup.so/v1/search", {
-                    method: "POST",
-                    headers: {
-                      Accept: "application/json",
-                      "Content-Type": "application/json",
-                      Authorization: "Bearer " + key,
-                    },
-                    body: JSON.stringify({
-                      q: queryKey,
-                      depth: DEPTH,
-                      outputType: "searchResults",
-                      maxResults: SEARCH_SIZE,
-                    }),
-                  }),
-                catch: (error) => new Error("Linkup request failed: " + String(error)),
-              })
-
-              if (!response.ok) {
-                const detail = yield* Effect.tryPromise({
-                  try: () => response.text(),
-                  catch: () => new Error("response body unavailable"),
-                })
-                return yield* Effect.fail(
-                  new Error("Linkup API error " + response.status + ": " + detail),
-                )
-              }
-
-              const json = yield* Effect.tryPromise({
-                try: () => response.json(),
-                catch: (error) => new Error("Invalid Linkup response: " + String(error)),
-              })
-
-              const body = yield* Schema.decodeUnknownEffect(LinkupResponse)(json)
-              const results = (body.results ?? []).flatMap((item) =>
-                item.url && item.type !== "image" ? [toResult(item)] : [],
+            // Rechecked per call: binding can lag a key deletion by the
+            // event round-trip, so this keeps that window explicit.
+            const key = yield* resolveKey()
+            if (!key) {
+              return yield* Effect.fail(
+                new Error("Connect Linkup in /connect, or set LINKUP_API_KEY"),
               )
+            }
 
-              writeCache(queryKey, results)
-              return results
-            }),
-        })
+            const response = yield* Effect.tryPromise({
+              try: () =>
+                fetch("https://api.linkup.so/v1/search", {
+                  method: "POST",
+                  headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + key,
+                  },
+                  body: JSON.stringify({
+                    q: queryKey,
+                    depth: DEPTH,
+                    outputType: "searchResults",
+                    maxResults: SEARCH_SIZE,
+                  }),
+                }),
+              catch: (error) => new Error("Linkup request failed: " + String(error)),
+            })
+
+            if (!response.ok) {
+              const detail = yield* Effect.tryPromise({
+                try: () => response.text(),
+                catch: () => new Error("response body unavailable"),
+              })
+              return yield* Effect.fail(
+                new Error("Linkup API error " + response.status + ": " + detail),
+              )
+            }
+
+            const json = yield* Effect.tryPromise({
+              try: () => response.json(),
+              catch: (error) => new Error("Invalid Linkup response: " + String(error)),
+            })
+
+            const body = yield* Schema.decodeUnknownEffect(LinkupResponse)(json)
+            const results = (body.results ?? []).flatMap((item) =>
+              item.url && item.type !== "image" ? [toResult(item)] : [],
+            )
+
+            writeCache(queryKey, results)
+            return results
+          }),
       })
+    })
 
-      // Rebind on credential changes: connect, delete, or rotate a key and the
-      // provider joins or leaves the websearch pool without a restart. Env-var
-      // keys cannot change under a running process, so they bind at startup.
-      yield* Effect.forkScoped(
-        ctx.event.subscribe().pipe(
-          Stream.filter(
-            (event) =>
-              event.type === "credential.updated" ||
-              event.type === "credential.switched" ||
-              event.type === "integration.updated",
-          ),
-          Stream.mapEffect(() =>
-            Effect.gen(function* () {
-              const next = Boolean(yield* resolveKey())
-              if (next === bound) return
-              bound = next
-              yield* ctx.websearch.reload()
-            }),
-          ),
-          Stream.runDrain,
+    // Rebind on credential changes: connect, delete, or rotate a key and the
+    // provider joins or leaves the websearch pool without a restart. Env-var
+    // keys cannot change under a running process, so they bind at startup.
+    yield* Effect.forkScoped(
+      ctx.event.subscribe().pipe(
+        Stream.filter(
+          (event) =>
+            event.type === "credential.updated" ||
+            event.type === "credential.switched" ||
+            event.type === "integration.updated",
         ),
-      )
-    }),
-})
+        Stream.mapEffect(() =>
+          Effect.gen(function* () {
+            const next = Boolean(yield* resolveKey())
+            if (next === bound) return
+            bound = next
+            yield* ctx.websearch.reload()
+          }),
+        ),
+        Stream.runDrain,
+      ),
+    )
+  })
+
+export default Plugin.define({ id: "linkup-search", effect })

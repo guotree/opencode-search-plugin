@@ -26,11 +26,15 @@ const AnySearchResponse = Schema.Struct({
   ),
 })
 
+// The /connect integration ID, and the websearch provider ID it binds to.
+const ID = "anysearch"
+
+// AnySearch returns no publication date, so results carry an empty time record.
 function toResult(item: {
-  title?: string
+  title?: string | undefined
   url: string
-  snippet?: string
-  content?: string
+  snippet?: string | undefined
+  content?: string | undefined
 }) {
   return {
     url: item.url,
@@ -43,7 +47,9 @@ function toResult(item: {
 type SearchResult = ReturnType<typeof toResult>
 
 function envInt(name: string, fallback: number): number {
-  const value = Number(process.env[name])
+  const raw = (process.env[name] ?? "").trim()
+  if (raw === "") return fallback
+  const value = Number(raw)
   return Number.isFinite(value) && value >= 0 ? value : fallback
 }
 
@@ -94,116 +100,128 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
   }
 }
 
-export default Plugin.define({
-  id: "anysearch-search",
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      // Make "AnySearch" show up in /connect with an API-key method.
-      yield* ctx.integration.transform((editor) => {
-        editor.update("anysearch", (integration) => {
-          integration.name = "AnySearch"
-        })
-        editor.method.update({
-          integrationID: "anysearch",
-          method: { type: "key", label: "AnySearch API key" },
-        })
-        editor.method.update({
-          integrationID: "anysearch",
-          method: { type: "env", names: ["ANYSEARCH_API_KEY"] },
-        })
+// Unlike the other providers in this repo, AnySearch never gates on `bound`:
+// anonymous access is a first-class mode, so the provider is always in the
+// pool. The key is still read per call, which is why no credential-event
+// subscription is needed -- a rotated key takes effect on the next search
+// without a reload.
+export const effect = (ctx: Plugin.Context) =>
+  Effect.gen(function* () {
+    // Make "AnySearch" show up in /connect with an API-key method.
+    yield* ctx.integration.transform((editor) => {
+      editor.update(ID, (integration) => {
+        integration.name = "AnySearch"
       })
+      editor.method.update({
+        integrationID: ID,
+        method: { type: "key", label: "AnySearch API key" },
+      })
+      editor.method.update({
+        integrationID: ID,
+        method: { type: "env", names: ["ANYSEARCH_API_KEY"] },
+      })
+    })
 
-      yield* ctx.websearch.transform((editor) => {
-        editor.add({
-          id: "anysearch",
-          name: "AnySearch",
-          execute: ({ query }) =>
-            Effect.gen(function* () {
-              const queryKey = cacheKey(query)
-              const cached = readCache(queryKey)
-              if (cached) return cached
+    // The host instantiates this API's failure channel as `unknown`, which would
+    // make the whole plugin effect unrunnable. A credential read must never take
+    // the plugin down: a failed read degrades to "no stored key", and the
+    // environment fallback below applies exactly as it does when the credential
+    // simply does not exist.
+    const soften = <A>(read: Effect.Effect<A, unknown>): Effect.Effect<A | undefined, never> =>
+      read.pipe(Effect.catch(() => Effect.succeed(undefined)))
 
-              // Anonymous access is a first-class mode, so a missing key is not
-              // an error: it just means no Authorization header goes out.
-              const connection = yield* ctx.integration.connection.active("anysearch")
-              const credential = connection
-                ? yield* ctx.integration.connection.resolve(connection)
-                : undefined
-              const key =
-                credential?.type === "key" ? credential.key : process.env.ANYSEARCH_API_KEY
+    yield* ctx.websearch.transform((editor) => {
+      editor.add({
+        id: ID,
+        name: "AnySearch",
+        execute: ({ query }) =>
+          Effect.gen(function* () {
+            const queryKey = cacheKey(query)
+            const cached = readCache(queryKey)
+            if (cached) return cached
 
-              const headers: Record<string, string> = {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-              }
-              if (key) headers.Authorization = "Bearer " + key
+            // Anonymous access is a first-class mode, so a missing key is not
+            // an error: it just means no Authorization header goes out.
+            const connection = yield* soften(ctx.integration.connection.active(ID))
+            const credential = connection
+              ? yield* soften(ctx.integration.connection.resolve(connection))
+              : undefined
+            const key =
+              credential?.type === "key" ? credential.key : process.env.ANYSEARCH_API_KEY
 
-              const response = yield* Effect.tryPromise({
-                try: () =>
-                  fetch("https://api.anysearch.com/v1/search", {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({
-                      query: queryKey,
-                      max_results: SEARCH_SIZE,
-                      ...(TAG ? { tag: TAG } : {}),
-                      ...(ZONE ? { zone: ZONE } : {}),
-                      ...(LANGUAGE ? { language: LANGUAGE } : {}),
-                      format: FORMAT,
-                    }),
+            const headers: Record<string, string> = {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            }
+            if (key) headers.Authorization = "Bearer " + key
+
+            const response = yield* Effect.tryPromise({
+              try: () =>
+                fetch("https://api.anysearch.com/v1/search", {
+                  method: "POST",
+                  headers,
+                  body: JSON.stringify({
+                    query: queryKey,
+                    max_results: SEARCH_SIZE,
+                    ...(TAG ? { tag: TAG } : {}),
+                    ...(ZONE ? { zone: ZONE } : {}),
+                    ...(LANGUAGE ? { language: LANGUAGE } : {}),
+                    format: FORMAT,
                   }),
-                catch: (error) => new Error("AnySearch request failed: " + String(error)),
-              })
+                }),
+              catch: (error) => new Error("AnySearch request failed: " + String(error)),
+            })
 
-              if (!response.ok) {
-                // A 402 body can hand back freshly generated credentials, so it
-                // is deliberately never echoed into the conversation.
-                if (response.status === 402) {
-                  return yield* Effect.fail(
-                    new Error(
-                      "AnySearch quota exhausted (HTTP 402). Set ANYSEARCH_API_KEY " +
-                        "or connect AnySearch in /connect to continue. The response " +
-                        "body is withheld because it may contain credentials.",
-                    ),
-                  )
-                }
-                const detail = yield* Effect.tryPromise({
-                  try: () => response.text(),
-                  catch: () => new Error("response body unavailable"),
-                })
-                return yield* Effect.fail(
-                  new Error("AnySearch API error " + response.status + ": " + detail),
-                )
-              }
-
-              const json = yield* Effect.tryPromise({
-                try: () => response.json(),
-                catch: (error) => new Error("Invalid AnySearch response: " + String(error)),
-              })
-
-              const body = yield* Schema.decodeUnknownEffect(AnySearchResponse)(json)
-
-              // AnySearch reports failures in the envelope too, even on HTTP
-              // 200. request_id is what support needs to trace the request.
-              if (body.code !== 0) {
+            if (!response.ok) {
+              // A 402 body can hand back freshly generated credentials, so it
+              // is deliberately never echoed into the conversation.
+              if (response.status === 402) {
                 return yield* Effect.fail(
                   new Error(
-                    "AnySearch API error " +
-                      body.code +
-                      ": " +
-                      (body.message ?? "unknown error") +
-                      " (request_id " +
-                      (body.request_id ?? "unknown") +
-                      ")",
+                    "AnySearch quota exhausted (HTTP 402). Set ANYSEARCH_API_KEY " +
+                      "or connect AnySearch in /connect to continue. The response " +
+                      "body is withheld because it may contain credentials.",
                   ),
                 )
               }
+              const detail = yield* Effect.tryPromise({
+                try: () => response.text(),
+                catch: () => new Error("response body unavailable"),
+              })
+              return yield* Effect.fail(
+                new Error("AnySearch API error " + response.status + ": " + detail),
+              )
+            }
 
-              const results = (body.data?.results ?? []).map(toResult)
-              writeCache(queryKey, results)
-              return results
-            }),
-        })
+            const json = yield* Effect.tryPromise({
+              try: () => response.json(),
+              catch: (error) => new Error("Invalid AnySearch response: " + String(error)),
+            })
+
+            const body = yield* Schema.decodeUnknownEffect(AnySearchResponse)(json)
+
+            // AnySearch reports failures in the envelope too, even on HTTP
+            // 200. request_id is what support needs to trace the request.
+            if (body.code !== 0) {
+              return yield* Effect.fail(
+                new Error(
+                  "AnySearch API error " +
+                    body.code +
+                    ": " +
+                    (body.message ?? "unknown error") +
+                    " (request_id " +
+                    (body.request_id ?? "unknown") +
+                    ")",
+                ),
+              )
+            }
+
+            const results = (body.data?.results ?? []).map(toResult)
+            writeCache(queryKey, results)
+            return results
+          }),
       })
-    }),
-})
+    })
+  })
+
+export default Plugin.define({ id: "anysearch-search", effect })
