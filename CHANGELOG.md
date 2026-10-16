@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Both READMEs now present install, upgrade, and uninstall in the order
+  npm, GitHub, local copy, as three parallel options, with npm
+  recommended: a published npm version is immutable, so a pinned install
+  always yields the same bytes, whereas a GitHub tag can be moved by a
+  maintainer. The `disable` example uses the npm specifier accordingly.
+
 ### Added
 
 - Upgrade and uninstall instructions in both READMEs, one command per
