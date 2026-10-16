@@ -17,7 +17,11 @@ OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parall
 ### 一次性装全九个：包安装
 
 ```sh
+# 从 GitHub 安装（追加 #v1.0.1 可固定到该 tag）
 opencode plugin add github:guotree/opencode-search-plugin
+
+# 或从 npm 安装（追加 @1.0.1 可固定到该版本）
+opencode plugin add opencode-search-plugin
 ```
 
 或者写进 `opencode.json(c)`：

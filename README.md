@@ -17,7 +17,11 @@ This repository adds plugins for nine more of them, taking the pool from five pr
 ### All nine, as a package
 
 ```sh
+# from GitHub (add #v1.0.1 to pin)
 opencode plugin add github:guotree/opencode-search-plugin
+
+# or from npm (add @1.0.1 to pin)
+opencode plugin add opencode-search-plugin
 ```
 
 or declare it in `opencode.json(c)`:
