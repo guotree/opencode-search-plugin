@@ -1,0 +1,220 @@
+# opencode-search-plugin
+
+Nine self-contained [OpenCode](https://opencode.ai) v2 plugins that register web search providers. Each file stands on its own: copy one into your plugins directory, or install the package to get all nine.
+
+AnySearch · Brave Search · Jina · Linkup · Metaso · Querit · SerpApi · Serper · You.com
+
+## Install
+
+### All nine, as a package
+
+```sh
+opencode plugin add github:guotree/opencode-search-plugin
+```
+
+or declare it in `opencode.json(c)`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["github:guotree/opencode-search-plugin"]
+}
+```
+
+### One or two, by copying a file
+
+Every plugin is a single `.ts` file with no relative imports and no build step. Drop it where OpenCode auto-discovers plugins:
+
+```text
+~/.config/opencode/plugins/            # global
+<project>/.opencode/plugins/           # one project
+```
+
+For a location that is not auto-discovered, list it explicitly:
+
+```jsonc
+{ "plugins": ["./plugins/brave-search.ts"] }
+```
+
+> Do not install the package *and* copy its files. Both register the same websearch provider IDs, so the pool would contain each service twice.
+
+### Skip the services you have no key for
+
+Loading the package registers all nine, but a provider without a key never joins the search pool — see [Keys](#keys). To keep them out of the registry entirely:
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "github:guotree/opencode-search-plugin",
+      "options": { "disable": ["serper", "serpapi", "youcom"] }
+    }
+  ]
+}
+```
+
+`disable` takes the provider IDs listed in the table below.
+
+## Keys
+
+Every provider except AnySearch needs an API key. Give it one of two ways:
+
+- **`/connect`** inside OpenCode — stored per provider, rotated without a restart, and survives environment changes.
+- **Environment variable** — read as a fallback, so it works in headless and CI contexts.
+
+A provider with no key stays unbound: it is absent from the websearch pool, so `"provider": "random"` can never route a query to a service that would immediately fail.
+
+AnySearch is the exception. It has an anonymous tier, so it is always registered and only attaches an `Authorization` header when a key exists.
+
+Once keys are in place, pick how OpenCode chooses among them:
+
+```jsonc
+{ "websearch": { "provider": "random" } }
+```
+
+`random` spreads queries across every bound provider. Set it to a specific ID such as `"brave"` to pin one, or `false` to turn web search off.
+
+## Providers
+
+| Provider | ID | Key (env / `/connect`) | Anonymous | Notes |
+| --- | --- | --- | --- | --- |
+| AnySearch | `anysearch` | `ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
+| Brave Search | `brave` | `BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
+| Jina | `jina` | `JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
+| Linkup | `linkup` | `LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
+| Metaso | `metaso` | `METASO_API_KEY` | no | Billed per search, not per result |
+| Querit | `querit` | `QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
+| SerpApi | `serpapi` | `SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
+| Serper | `serper` | `SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
+| You.com | `youcom` | `YDC_API_KEY` | no | Web and news merged; extraction modes |
+
+## Configuration
+
+Knobs are environment variables, read once when OpenCode starts — change one and restart. Defaults match what each API documents, so leaving them unset is the right starting point.
+
+### Shared by all nine
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `<PROVIDER>_CACHE_TTL` | `600000` | Milliseconds to reuse a response for the same normalized query. `0` disables caching. |
+
+### AnySearch
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ANYSEARCH_MAX_RESULTS` | `10` | Results per search, clamped to the API's 1–10 |
+| `ANYSEARCH_TAG` | — | Pin the intent router to a sub-domain, e.g. `code.doc` |
+| `ANYSEARCH_ZONE` | — | `cn` or `intl` |
+| `ANYSEARCH_LANGUAGE` | — | Preferred result language, e.g. `zh-CN` |
+| `ANYSEARCH_FORMAT` | `markdown` | `markdown` or `json` for the content field |
+| `ANYSEARCH_API_KEY` | — | Optional; anonymous access works without it |
+
+### Brave Search
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `BRAVE_NUM` | `8` | Results per search, clamped to 1–20 (Brave's maximum) |
+| `BRAVE_COUNTRY` | — | Two-letter country code, or `ALL` |
+| `BRAVE_LANG` | — | Result language, e.g. `en`, `zh-hans`, `pt-br` |
+| `BRAVE_FRESHNESS` | — | `pd` (24h), `pw` (7d), `pm` (31d), `py` (365d), or `YYYY-MM-DDtoYYYY-MM-DD` |
+
+### Jina
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `JINA_NUM` | `0` | Results per search, 1–100. `0` omits the parameter, which keeps Jina's faster and wider result types |
+| `JINA_INCLUDE_CONTENT` | off | `true` returns each hit's full page markdown — far more context and billed tokens |
+| `JINA_GL` / `JINA_HL` | — | Country / language code |
+| `JINA_LOCATION` | — | City-level origin to simulate, e.g. `Berlin` |
+
+### Linkup
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `LINKUP_DEPTH` | `fast` | `flash`, `fast`, `standard`, or `deep` |
+| `LINKUP_MAX_RESULTS` | `10` | Results per search, clamped to 1–100 |
+
+### Metaso
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `METASO_SEARCH_SIZE` | `20` | Results per search, clamped to 1–100 |
+| `METASO_INCLUDE_RAW_CONTENT` | off | `true` returns every hit's full source text at the same search cost, but far more context tokens |
+
+### Querit
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `QUERIT_COUNT` | `8` | Results per search |
+
+### SerpApi
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SERPAPI_GL` / `SERPAPI_HL` | — | Country / language code |
+| `SERPAPI_TBS` | — | Advanced filter, e.g. `qdr:d` (past day), `qdr:y` (past year) |
+
+There is deliberately no result-count knob: Google withdrew the `num` parameter, so SerpApi cannot honour one.
+
+### Serper
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SERPER_NUM` | `10` | Results per search, clamped to 1–100 |
+| `SERPER_GL` / `SERPER_HL` | — | Country / language code |
+| `SERPER_TBS` | — | Time filter: `qdr:h`, `qdr:d`, `qdr:w`, `qdr:m`, `qdr:y` |
+
+### You.com
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `YOUCOM_COUNT` | `10` | Results per section (web and news each), clamped to 1–100 |
+| `YOUCOM_EXTRACTION` | `highlights` | `highlights` returns answering passages, `none` returns bare snippets, `full_page` crawls every hit and bills per live-fetched page |
+| `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | e.g. `EN` / `US` |
+| `YOUCOM_FRESHNESS` | — | `day`, `week`, `month`, `year`, or `YYYY-MM-DDtoYYYY-MM-DD` |
+
+## How a query flows
+
+1. OpenCode asks the selected provider for the query.
+2. The normalized query (trimmed, whitespace collapsed) is checked against an in-memory cache. A hit returns immediately — repeat queries are free and instant.
+3. On a miss the key is resolved again, so a key rotated in `/connect` applies to the very next search.
+4. The request goes out; failures surface the HTTP status and response body so you can see what the provider actually said.
+5. The response is schema-decoded, mapped to `{ url, title, content, time }`, and cached.
+
+Dates are parsed from relative phrases (`3 hours ago`, `3小时前`), absolute formats (`Sep 30, 2026`, `31 Mar 2026`), and ISO 8601. Strings whose lenient parsing would invent a wrong year — `Nov 1`, which `Date.parse` reads as 2001 — are dropped rather than reported as a bogus timestamp.
+
+## Troubleshooting
+
+```sh
+# Is the plugin loaded, and did it fail?
+opencode plugin list
+
+# Which providers are actually in the pool?
+# A provider missing here has no key, or is listed in `disable`.
+opencode api get "/api/websearch/provider"
+```
+
+Also worth checking:
+
+- **A provider is missing from the pool** — it has no key. Run `/connect` or export its variable, then restart; credential changes made in `/connect` rebind without one.
+- **A search fails with `Connect X in /connect, or set X_API_KEY`** — the key disappeared between binding and searching. Reconnect or re-export.
+- **Everything is slow or burning credits** — leave `*_CACHE_TTL` at its default. Repeated queries within the window are served from memory.
+- **Nothing happens after editing a plugin file** — OpenCode watches plugins and reloads them; if it does not, `opencode service restart`.
+
+Logs live at `~/.local/share/opencode/log/opencode.log`; filter for `loading plugin` to see every plugin OpenCode resolved, with its entrypoint.
+
+## Development
+
+```sh
+npm install
+npm run check     # typecheck + tests
+```
+
+- `npm run typecheck` — strict TypeScript across every plugin and test.
+- `npm test` — the shared provider contract, per-provider behaviour, date parsing, aggregate registration, and repository-structure guards.
+
+The structure tests exist because each file must remain independently copyable: they fail if a plugin starts importing a sibling module, if the shared blocks stop being byte-identical copies, or if a provider's IDs drift apart. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)
