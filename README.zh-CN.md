@@ -215,6 +215,8 @@ npm run check     # 类型检查 + 测试
 - `npm run typecheck` —— 对所有插件和测试做严格 TypeScript 检查。
 - `npm test` —— 覆盖通用 provider 契约、各家行为、日期解析、聚合注册，以及仓库结构守卫。
 
+`@opencode/plugin` 和 `effect` 声明为 **devDependencies**，而不是 `dependencies`。这两个模块由 OpenCode 在运行时提供——这正是单个 `.ts` 文件可以放进 `~/.config/opencode/plugins/` 且完全不需要 `node_modules` 的原因。若写成运行时依赖，`opencode plugin add` 会为了 100 KB 的插件源码安装 127 MB 的依赖树（仅 `effect` 就 47 MB，`@opencode/plugin` 还会拖进 `@aws-sdk`、`google-auth-library` 和 `@opentelemetry`）；放进 devDependencies 后，类型检查和测试照常可用，而使用者安装时拿不到这份依赖树。
+
 存在结构测试，是因为每个文件必须保持可独立复制：一旦某个插件开始 import 同级模块、共享代码块不再是逐字相同的副本、或者某家的 ID 出现偏移，测试就会失败。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证

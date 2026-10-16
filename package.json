@@ -46,15 +46,13 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run test"
   },
-  "dependencies": {
-    "@opencode/plugin": "2.0.30",
-    "effect": "4.0.1"
-  },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
+    "@opencode/plugin": "2.0.30",
     "@types/node": "^26.6.5",
+    "effect": "4.0.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

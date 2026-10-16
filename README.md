@@ -215,6 +215,8 @@ npm run check     # typecheck + tests
 - `npm run typecheck` — strict TypeScript across every plugin and test.
 - `npm test` — the shared provider contract, per-provider behaviour, date parsing, aggregate registration, and repository-structure guards.
 
+`@opencode/plugin` and `effect` are declared as **devDependencies**, not `dependencies`. OpenCode provides both to plugins at runtime — the same mechanism that lets a single `.ts` file run from `~/.config/opencode/plugins/` with no `node_modules` at all. Declaring them as runtime dependencies would make `opencode plugin add` install a 127 MB tree (`effect` alone is 47 MB, and `@opencode/plugin` pulls in `@aws-sdk`, `google-auth-library` and `@opentelemetry`) to reach 100 KB of plugin source; as devDependencies they are present for typechecking and tests, and absent from a consumer's install.
+
 The structure tests exist because each file must remain independently copyable: they fail if a plugin starts importing a sibling module, if the shared blocks stop being byte-identical copies, or if a provider's IDs drift apart. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
