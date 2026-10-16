@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-16
+
+Releases are now automated: every `v*` tag publishes to npm through
+GitHub Actions.
+
+### Added
+
+- npm as an install source in both READMEs: `opencode plugin add
+  opencode-search-plugin` next to the GitHub form, with each form's
+  pinning syntax noted in its own comment.
+- Release workflow (`.github/workflows/release.yml`) publishing to npm on
+  every `v*` tag through npm trusted publishing (OIDC). No npm token is
+  stored in repository secrets and provenance attestations are generated
+  automatically. A gate rejects a tag whose version does not match
+  `package.json`, and `npm run check` runs before the publish step —
+  `ci.yml` watches branches and pull requests only, so a tag push would
+  otherwise reach the registry untested.
+
 ## [1.0.0] - 2026-10-16
 
 First public release. The nine providers were previously maintained as loose
@@ -54,4 +72,5 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
+[1.0.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.1
 [1.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.0
