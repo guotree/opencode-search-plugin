@@ -1,5 +1,7 @@
 # opencode-search-plugin
 
+**English** · [简体中文](README.zh-CN.md)
+
 Nine self-contained [OpenCode](https://opencode.ai) v2 plugins that register web search providers. Each file stands on its own: copy one into your plugins directory, or install the package to get all nine.
 
 AnySearch · Brave Search · Jina · Linkup · Metaso · Querit · SerpApi · Serper · You.com
