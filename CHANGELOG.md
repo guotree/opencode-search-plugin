@@ -6,16 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed
-
-- Both READMEs now present install, upgrade, and uninstall in the order
-  npm, GitHub, local copy, as three parallel options, with npm
-  recommended: a published npm version is immutable, so a pinned install
-  always yields the same bytes, whereas a GitHub tag can be moved by a
-  maintainer. The `disable` example uses the npm specifier accordingly.
+## [1.1.0] - 2026-10-17
 
 ### Added
 
+- **Keenable** (`plugins/keenable-search.ts`), the second provider that runs
+  without a key. It mirrors AnySearch's shape: always registered, the key read
+  per call, and `/connect` still available for one. With a key the request goes
+  to `POST /v1/search` and is metered against the free monthly allowance of
+  100,000 requests; without one it falls back to `POST /v1/search/public` with
+  the required `X-Keenable-Title` header, which is limited per IP instead (1,000
+  an hour, 10 a second) and spends no credits. Results carry `published_at`, so
+  Keenable shares the date parser, and a `402` on a keyed call names the
+  exhausted allowance while a `429` explains the keyless pool's caps.
+  Knobs: `KEENABLE_MAX_RESULTS` (1–50), `KEENABLE_MODE`, `KEENABLE_TITLE`.
 - Upgrade and uninstall instructions in both READMEs, one command per
   install form. The target of `opencode plugin update` and
   `opencode plugin remove` is the specifier that was configured — a
@@ -23,6 +27,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   configured` — alongside the manual equivalents for a `plugins` entry
   and a copied file, and a note that `/connect` credentials survive a
   reinstall.
+
+### Changed
+
+- Both READMEs now present install, upgrade, and uninstall in the order
+  npm, GitHub, local copy, as three parallel options, with npm
+  recommended: a published npm version is immutable, so a pinned install
+  always yields the same bytes, whereas a GitHub tag can be moved by a
+  maintainer. The `disable` example uses the npm specifier accordingly.
+- The pinned version named throughout both READMEs is now `@1.1.0`, so the
+  recommended pin includes Keenable.
 
 ## [1.0.1] - 2026-10-16
 
@@ -92,6 +106,7 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.1.0
 [1.0.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.1
 [1.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.0
