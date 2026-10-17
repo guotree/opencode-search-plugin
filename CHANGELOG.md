@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-17
+
+### Changed
+
+- **Breaking: every provider ID now carries an `osp-` prefix** (`brave` becomes
+  `osp-brave`, and likewise for the other nine). The prefix is this package's
+  namespace: OpenCode's built-ins register bare vendor names (`exa`, `tavily`),
+  and a vendor's official plugin does the same — Keenable already ships one —
+  so a bare name could collide with a provider OpenCode adds later, or with a
+  vendor plugin installed alongside this one. The collision would land twice:
+  in the websearch pool, and in the `opencode.db` row that keys credentials by
+  integration ID, where our `editor.update` would edit someone else's entry.
+  Only `const ID` changed. Plugin file IDs, npm export paths, display names,
+  and environment variables are untouched, and there is deliberately no
+  compatibility shim for the old IDs. `websearch.provider` and `disable` must
+  use the prefixed form.
+- The pinned version named throughout both READMEs is now `@2.0.0`.
+
 ## [1.1.0] - 2026-10-17
 
 ### Added
@@ -106,7 +124,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.0.0
 [1.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.1.0
 [1.0.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.1
 [1.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.0
