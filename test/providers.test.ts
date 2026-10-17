@@ -25,11 +25,13 @@ afterEach(() => {
  * The contract every provider in this repository must satisfy. Anything a
  * provider does beyond this is asserted in its own test file.
  */
+/** Providers with an anonymous tier, which never gate on a key. */
+const KEYLESS = new Set(["anysearch", "keenable"])
+
 describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
   const modulePath = `../plugins/${spec.file}`
   const noKeyEnv = { [spec.envKey]: "" }
-  /** AnySearch has an anonymous tier, so it never gates on a key. */
-  const requiresKey = spec.providerID !== "anysearch"
+  const requiresKey = !KEYLESS.has(spec.providerID)
 
   async function load(env: Record<string, string> = noKeyEnv) {
     return loadPlugin<ProviderModule>(modulePath, env)
@@ -43,7 +45,7 @@ describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
     if (requiresKey) {
       expect(harness.providers).toHaveLength(0)
     } else {
-      expect(harness.providers.map((p) => p.id)).toEqual(["anysearch"])
+      expect(harness.providers.map((p) => p.id)).toEqual([spec.providerID])
     }
   })
 

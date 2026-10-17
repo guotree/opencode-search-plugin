@@ -77,6 +77,32 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "keenable-search",
+    pluginID: "keenable-search",
+    providerID: "keenable",
+    displayName: "Keenable",
+    envKey: "KEENABLE_API_KEY",
+    response: {
+      query: "a query",
+      mode: "pro",
+      results: [
+        {
+          title: "Keenable hit",
+          url: "https://example.com/keenable",
+          description: "Keenable description",
+          snippet: "Keenable snippet",
+        },
+      ],
+    },
+    expected: [
+      {
+        url: "https://example.com/keenable",
+        title: "Keenable hit",
+        content: "Keenable snippet",
+      },
+    ],
+  },
+  {
     file: "linkup-search",
     pluginID: "linkup-search",
     providerID: "linkup",

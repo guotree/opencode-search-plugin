@@ -58,10 +58,10 @@ describe("index", () => {
     expect(registered).toEqual(ALL_IDS.filter((id) => id !== "serper"))
   })
 
-  it("keeps anonymous AnySearch available even with no credential", async () => {
+  it("keeps the anonymous providers available even with no credential", async () => {
     const mod = await loadPlugin<AggregateModule>("../index")
     const harness = makeHarness()
     await harness.run(mod.default.effect(harness.ctx))
-    expect(harness.providers.map((p) => p.id)).toEqual(["anysearch"])
+    expect(harness.providers.map((p) => p.id)).toEqual(["anysearch", "keenable"])
   })
 })

@@ -2,24 +2,24 @@
 
 # opencode-search-plugin
 
-九个相互独立的 [OpenCode](https://opencode.ai) v2 插件，各自注册一个网页搜索 provider。每个文件都能单独使用：复制一个进你的插件目录，或者安装这个包一次拿全九个。
+十个相互独立的 [OpenCode](https://opencode.ai) v2 插件，各自注册一个网页搜索 provider。每个文件都能单独使用：复制一个进你的插件目录，或者安装这个包一次拿全十个。
 
-[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [Jina](https://jina.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## 为什么做这个插件
 
 OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。在这个范围之外，还有大量搜索 API 提供免费额度或免费层级，足以支撑 agent 的日常检索而不必为此付费。
 
-本仓库为其中九家补上了插件，把可用池从五个 provider 扩到十四个。AnySearch 无需任何 key 即可使用；其余八家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
+本仓库为其中十家补上了插件，把可用池从五个 provider 扩到十五个。AnySearch 和 Keenable 无需任何 key 即可使用；其余八家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@1.0.1` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（九个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@1.1.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
 ```sh
-# 追加 @1.0.1 可固定到该版本
+# 追加 @1.1.0 可固定到该版本
 opencode plugin add opencode-search-plugin
 ```
 
@@ -35,7 +35,7 @@ opencode plugin add opencode-search-plugin
 ### 2. 从 GitHub 安装
 
 ```sh
-# 追加 #v1.0.1 可固定到该 tag
+# 追加 #v1.1.0 可固定到该 tag
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -67,7 +67,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 ### 跳过你没有 key 的服务
 
-装包会注册全部九家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现：
+装包会注册全部十家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现：
 
 ```jsonc
 {
@@ -80,7 +80,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 }
 ```
 
-`disable` 填的是下表中的 provider ID。
+`disable` 填的是下表中的 provider ID。AnySearch 和 Keenable 不需要 key，想把这两家也排除在搜索池之外，只能用 `disable`。
 
 ## 升级
 
@@ -93,7 +93,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@1.0.1`、GitHub 形式的 `#v1.0.1`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
+升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@1.1.0`、GitHub 形式的 `#v1.1.0`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
 
 ## 卸载
 
@@ -108,14 +108,14 @@ opencode plugin remove github:guotree/opencode-search-plugin
 
 ## 密钥
 
-除 AnySearch 外，每家服务都需要 API key。两种给法二选一：
+除 AnySearch 和 Keenable 外，每家服务都需要 API key。两种给法二选一：
 
 - **OpenCode 内的 `/connect`** —— 按 provider 存储，轮换后无需重启，且不受环境变量变动影响。
 - **环境变量** —— 作为兜底读取，因此在无界面和 CI 场景下也能工作。
 
 没有 key 的 provider 会保持未绑定状态：它不在 websearch 池中，所以 `"provider": "random"` 绝不会把查询路由到一个注定失败的服务上。
 
-AnySearch 是例外。它有匿名额度，因此始终注册，只有存在 key 时才附带 `Authorization` 头。
+AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册，只有存在 key 时才附带各自的凭据头。Keenable 的两层额度互不通用：有 key 时消耗每月 100,000 次的免费额度，无 key 的请求则改走 `/public` 端点，按速率限制——每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的所有人共用。想摆脱这个共享池的不确定性，就得配一把 key。
 
 密钥就位后，再决定 OpenCode 如何在它们之间做选择：
 
@@ -132,6 +132,7 @@ AnySearch 是例外。它有匿名额度，因此始终注册，只有存在 key
 | AnySearch | `anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
 | Brave Search | `brave` | `BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
 | Jina | `jina` | `JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
+| Keenable | `keenable` | `KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
 | Linkup | `linkup` | `LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
 | Metaso | `metaso` | `METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
 | Querit | `querit` | `QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
@@ -143,7 +144,7 @@ AnySearch 是例外。它有匿名额度，因此始终注册，只有存在 key
 
 所有配置项都是环境变量，OpenCode 启动时读取一次——改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
 
-### 九家通用
+### 十家通用
 
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -177,6 +178,15 @@ AnySearch 是例外。它有匿名额度，因此始终注册，只有存在 key
 | `JINA_INCLUDE_CONTENT` | 关 | `true` 返回每条命中的整页 markdown——上下文和计费 token 都会大幅增加 |
 | `JINA_GL` / `JINA_HL` | — | 国家 / 语言代码 |
 | `JINA_LOCATION` | — | 模拟的城市级来源，例如 `Berlin` |
+
+### Keenable
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `KEENABLE_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–50 |
+| `KEENABLE_MODE` | — | `pro`（更深的检索）或 `realtime`（最快）；不设则沿用 Keenable 自己的默认值 |
+| `KEENABLE_TITLE` | `opencode-search-plugin` | 作为 `X-Keenable-Title` 发出的应用名，无 key 端点靠它归属调用方 |
+| `KEENABLE_API_KEY` | — | 可选；不设也能匿名使用 |
 
 ### Linkup
 
@@ -242,12 +252,14 @@ opencode plugin list
 
 # 搜索池里到底有哪些 provider？
 # 这里少了一家，说明它没有 key，或者被写进了 `disable`。
+# AnySearch 和 Keenable 永远在列，因为它们都不需要 key。
 opencode api get "/api/websearch/provider"
 ```
 
 另外几个值得检查的地方：
 
 - **某家 provider 不在池里** —— 它没有 key。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。
+- **搜索报错 `Keenable rate limited the request (HTTP 429)`** —— 无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
 - **搜索报错 `Connect X in /connect, or set X_API_KEY`** —— key 在绑定和搜索之间消失了。重新连接或重新导出。
 - **一切都很慢、或者积分烧得飞快** —— 把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。
 - **改了插件文件却没反应** —— OpenCode 会监视插件并自动重载；如果没有，执行 `opencode service restart`。

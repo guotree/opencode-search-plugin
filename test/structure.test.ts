@@ -68,7 +68,15 @@ const SOFTEN_BLOCK = `const soften = <A>(read: Effect.Effect<A, unknown>): Effec
       read.pipe(Effect.catch(() => Effect.succeed(undefined)))`
 
 /** Files that carry a date field and must therefore share the date parser. */
-const WITH_DATES = ["brave-search", "metaso-search", "querit-search", "serpapi-search", "serper-search", "youcom-search"]
+const WITH_DATES = [
+  "brave-search",
+  "keenable-search",
+  "metaso-search",
+  "querit-search",
+  "serpapi-search",
+  "serper-search",
+  "youcom-search",
+]
 
 describe("repository structure", () => {
   it("exposes every provider as a standalone file with no cross-file imports", () => {
