@@ -37,31 +37,31 @@ describe("index", () => {
     const mod = await loadPlugin<AggregateModule>("../index")
     const harness = makeHarness({
       credentialSequence: [CREDENTIAL],
-      options: { disable: ["serper", "brave"] },
+      options: { disable: ["osp-serper", "osp-brave"] },
     })
     await harness.run(mod.default.effect(harness.ctx))
 
     const registered = harness.providers.map((p) => p.id).sort()
-    expect(registered).toEqual(ALL_IDS.filter((id) => id !== "brave" && id !== "serper"))
-    expect(harness.integrationNames.has("serper")).toBe(false)
+    expect(registered).toEqual(ALL_IDS.filter((id) => id !== "osp-brave" && id !== "osp-serper"))
+    expect(harness.integrationNames.has("osp-serper")).toBe(false)
   })
 
   it("ignores a malformed disable option rather than dropping providers", async () => {
     const mod = await loadPlugin<AggregateModule>("../index")
     const harness = makeHarness({
       credentialSequence: [CREDENTIAL],
-      options: { disable: ["serper", 42, null] },
+      options: { disable: ["osp-serper", 42, null] },
     })
     await harness.run(mod.default.effect(harness.ctx))
 
     const registered = harness.providers.map((p) => p.id).sort()
-    expect(registered).toEqual(ALL_IDS.filter((id) => id !== "serper"))
+    expect(registered).toEqual(ALL_IDS.filter((id) => id !== "osp-serper"))
   })
 
   it("keeps the anonymous providers available even with no credential", async () => {
     const mod = await loadPlugin<AggregateModule>("../index")
     const harness = makeHarness()
     await harness.run(mod.default.effect(harness.ctx))
-    expect(harness.providers.map((p) => p.id)).toEqual(["anysearch", "keenable"])
+    expect(harness.providers.map((p) => p.id)).toEqual(["osp-anysearch", "osp-keenable"])
   })
 })

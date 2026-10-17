@@ -22,19 +22,20 @@ type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.
  *
  * The key of each entry is the websearch provider ID -- the one that appears in
  * `/api/websearch/provider`, in `websearch.provider`, and in the `disable`
- * option below. Renaming one would strand existing configuration.
+ * option below. Renaming one would strand existing configuration. Each is
+ * prefixed `osp-` to namespace it to this package; see CONTRIBUTING.md.
  */
 const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
-  ["anysearch", anysearch],
-  ["brave", brave],
-  ["jina", jina],
-  ["keenable", keenable],
-  ["linkup", linkup],
-  ["metaso", metaso],
-  ["querit", querit],
-  ["serpapi", serpapi],
-  ["serper", serper],
-  ["youcom", youcom],
+  ["osp-anysearch", anysearch],
+  ["osp-brave", brave],
+  ["osp-jina", jina],
+  ["osp-keenable", keenable],
+  ["osp-linkup", linkup],
+  ["osp-metaso", metaso],
+  ["osp-querit", querit],
+  ["osp-serpapi", serpapi],
+  ["osp-serper", serper],
+  ["osp-youcom", youcom],
 ]
 
 /**

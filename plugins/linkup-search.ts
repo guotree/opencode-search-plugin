@@ -18,7 +18,10 @@ const LinkupResponse = Schema.Struct({
 })
 
 // The /connect integration ID, and the websearch provider ID it binds to.
-const ID = "linkup"
+// The `osp-` prefix is this package's namespace: OpenCode's built-ins and a
+// vendor plugin's own entry are bare vendor names, so `linkup` would collide
+// with them, and with the opencode.db row keyed by integration ID.
+const ID = "osp-linkup"
 
 function toResult(item: typeof LinkupResult.Type) {
   return {

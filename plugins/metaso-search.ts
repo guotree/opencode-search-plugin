@@ -16,7 +16,10 @@ const MetasoResponse = Schema.Struct({
 })
 
 // The /connect integration ID, and the websearch provider ID it binds to.
-const ID = "metaso"
+// The `osp-` prefix is this package's namespace: OpenCode's built-ins and a
+// vendor plugin's own entry are bare vendor names, so `metaso` would collide
+// with them, and with the opencode.db row keyed by integration ID.
+const ID = "osp-metaso"
 
 function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()

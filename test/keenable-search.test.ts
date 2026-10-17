@@ -22,10 +22,10 @@ afterEach(() => {
 describe("keenable-search", () => {
   it("binds without a credential and calls the keyless endpoint", async () => {
     const { mod, harness } = await bind()
-    expect(harness.providers.map((p) => p.id)).toEqual(["keenable"])
-    expect(harness.integrationNames.get("keenable")).toBe("Keenable")
+    expect(harness.providers.map((p) => p.id)).toEqual(["osp-keenable"])
+    expect(harness.integrationNames.get("osp-keenable")).toBe("Keenable")
     expect(harness.envMethods).toEqual([
-      { integrationID: "keenable", names: ["KEENABLE_API_KEY"] },
+      { integrationID: "osp-keenable", names: ["KEENABLE_API_KEY"] },
     ])
     expect(mod.default.id).toBe("keenable-search")
 

@@ -60,10 +60,10 @@ describe("brave-search", () => {
 
   it("binds the provider and wires /connect when a key is stored", async () => {
     const { mod, harness } = await bind()
-    expect(harness.providers.map((p) => p.id)).toEqual(["brave"])
-    expect(harness.integrationNames.get("brave")).toBe("Brave Search")
+    expect(harness.providers.map((p) => p.id)).toEqual(["osp-brave"])
+    expect(harness.integrationNames.get("osp-brave")).toBe("Brave Search")
     expect(harness.envMethods).toEqual([
-      { integrationID: "brave", names: ["BRAVE_SEARCH_API_KEY"] },
+      { integrationID: "osp-brave", names: ["BRAVE_SEARCH_API_KEY"] },
     ])
     expect(mod.default.id).toBe("brave-search")
   })
@@ -74,7 +74,7 @@ describe("brave-search", () => {
     })
     const harness = makeHarness()
     await harness.run(mod.effect(harness.ctx))
-    expect(harness.providers.map((p) => p.id)).toEqual(["brave"])
+    expect(harness.providers.map((p) => p.id)).toEqual(["osp-brave"])
 
     const fetch = stubFetch(() => jsonResponse({ web: { results: [] } }))
     await harness.run(harness.providers[0]!.execute({ query: "q" }))
@@ -181,7 +181,7 @@ describe("brave-search", () => {
     // noticed the key and replayed the transform, which is what makes the
     // provider join the pool without a restart.
     expect(harness.reloads).toBe(1)
-    expect(harness.providers.map((p) => p.id)).toEqual(["brave"])
+    expect(harness.providers.map((p) => p.id)).toEqual(["osp-brave"])
   })
 
   it("does not reload when the credential state is unchanged", async () => {

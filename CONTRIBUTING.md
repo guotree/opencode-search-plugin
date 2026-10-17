@@ -44,14 +44,16 @@ Three IDs appear on every plugin, and renaming any of them breaks users:
 | ID | Set in | Used by |
 | --- | --- | --- |
 | `<file>` e.g. `brave-search` | `Plugin.define({ id })` | `plugins` entries and `-` disable control |
-| `const ID` e.g. `brave` | `editor.add({ id })` and `editor.update(ID)` | `websearch.provider`, the `disable` option, `/api/websearch/provider` |
+| `const ID` e.g. `osp-brave` | `editor.add({ id })` and `editor.update(ID)` | `websearch.provider`, the `disable` option, `/api/websearch/provider` |
 | `const ID` | `editor.method.update({ integrationID })` | Credentials saved in `/connect` |
 
 The plugin ID equals the filename; the provider ID equals the integration ID. Both are asserted in `test/structure.test.ts`, because a credential saved against one ID is invisible to code reading the other.
 
+The provider ID is the one that can collide with somebody else's, so it carries this package's `osp-` prefix: OpenCode's built-ins are bare vendor names (`exa`, `tavily`), and a vendor's own plugin registers one too — Keenable already ships one. A new provider takes `const ID = "osp-<vendor>"`. The plugin file ID stays unprefixed, because the plugins list already namespaces it by package.
+
 ## Adding a provider
 
-1. Copy the closest existing file to `plugins/<name>-search.ts` and change `ID`, the schema, the endpoint, and the mapping.
+1. Copy the closest existing file to `plugins/<name>-search.ts` and change `ID` (to `osp-<vendor>`), the schema, the endpoint, and the mapping.
 2. Keep the shared blocks byte-identical — copy them from an existing file rather than retyping.
 3. Export both `effect` (so `index.ts` can compose it) and `default Plugin.define({ id: "<name>-search", effect })`.
 4. Add an entry to `PROVIDER_CASES` in `test/cases.ts` with a response body and the results it must map to.

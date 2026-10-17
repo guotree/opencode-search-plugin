@@ -13,7 +13,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "anysearch-search",
     pluginID: "anysearch-search",
-    providerID: "anysearch",
+    providerID: "osp-anysearch",
     displayName: "AnySearch",
     envKey: "ANYSEARCH_API_KEY",
     response: {
@@ -39,7 +39,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "brave-search",
     pluginID: "brave-search",
-    providerID: "brave",
+    providerID: "osp-brave",
     displayName: "Brave Search",
     envKey: "BRAVE_SEARCH_API_KEY",
     response: {
@@ -64,7 +64,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "jina-search",
     pluginID: "jina-search",
-    providerID: "jina",
+    providerID: "osp-jina",
     displayName: "Jina",
     envKey: "JINA_API_KEY",
     response: {
@@ -79,7 +79,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "keenable-search",
     pluginID: "keenable-search",
-    providerID: "keenable",
+    providerID: "osp-keenable",
     displayName: "Keenable",
     envKey: "KEENABLE_API_KEY",
     response: {
@@ -105,7 +105,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "linkup-search",
     pluginID: "linkup-search",
-    providerID: "linkup",
+    providerID: "osp-linkup",
     displayName: "Linkup",
     envKey: "LINKUP_API_KEY",
     response: {
@@ -124,7 +124,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "metaso-search",
     pluginID: "metaso-search",
-    providerID: "metaso",
+    providerID: "osp-metaso",
     displayName: "Metaso Search",
     envKey: "METASO_API_KEY",
     response: {
@@ -143,7 +143,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "querit-search",
     pluginID: "querit-search",
-    providerID: "querit",
+    providerID: "osp-querit",
     displayName: "Querit",
     envKey: "QUERIT_API_KEY",
     response: {
@@ -165,7 +165,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "serpapi-search",
     pluginID: "serpapi-search",
-    providerID: "serpapi",
+    providerID: "osp-serpapi",
     displayName: "SerpApi",
     envKey: "SERPAPI_API_KEY",
     response: {
@@ -184,7 +184,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "serper-search",
     pluginID: "serper-search",
-    providerID: "serper",
+    providerID: "osp-serper",
     displayName: "Serper",
     envKey: "SERPER_API_KEY",
     response: {
@@ -199,7 +199,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
   {
     file: "youcom-search",
     pluginID: "youcom-search",
-    providerID: "youcom",
+    providerID: "osp-youcom",
     displayName: "You.com",
     envKey: "YDC_API_KEY",
     response: {

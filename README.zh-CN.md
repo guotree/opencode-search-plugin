@@ -14,12 +14,12 @@ OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parall
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@1.1.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.0.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
 ```sh
-# 追加 @1.1.0 可固定到该版本
+# 追加 @2.0.0 可固定到该版本
 opencode plugin add opencode-search-plugin
 ```
 
@@ -35,7 +35,7 @@ opencode plugin add opencode-search-plugin
 ### 2. 从 GitHub 安装
 
 ```sh
-# 追加 #v1.1.0 可固定到该 tag
+# 追加 #v2.0.0 可固定到该 tag
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -74,7 +74,7 @@ opencode plugin add github:guotree/opencode-search-plugin
   "plugins": [
     {
       "package": "opencode-search-plugin",
-      "options": { "disable": ["serper", "serpapi", "youcom"] }
+      "options": { "disable": ["osp-serper", "osp-serpapi", "osp-youcom"] }
     }
   ]
 }
@@ -93,7 +93,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@1.1.0`、GitHub 形式的 `#v1.1.0`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
+升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@2.0.0`、GitHub 形式的 `#v2.0.0`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
 
 ## 卸载
 
@@ -123,22 +123,24 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 { "websearch": { "provider": "random" } }
 ```
 
-`random` 会把查询分散到所有已绑定的 provider。填具体 ID（例如 `"brave"`）则固定用某一家，填 `false` 则完全关闭网页搜索。
+`random` 会把查询分散到所有已绑定的 provider。填具体 ID（例如 `"osp-brave"`）则固定用某一家，填 `false` 则完全关闭网页搜索。
 
 ## 支持的服务
 
+下表每个 ID 都带 `osp-` 前缀——这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `disable` 里请原样使用带前缀的 ID。
+
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
-| AnySearch | `anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
-| Brave Search | `brave` | `BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
-| Jina | `jina` | `JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
-| Keenable | `keenable` | `KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
-| Linkup | `linkup` | `LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
-| Metaso | `metaso` | `METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
-| Querit | `querit` | `QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
-| SerpApi | `serpapi` | `SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；另有其自带的免费 1 小时服务端缓存 |
-| Serper | `serper` | `SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
-| You.com | `youcom` | `YDC_API_KEY` | 否 | 网页与新闻结果合并；多种正文抽取模式 |
+| AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
+| Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
+| Jina | `osp-jina` | `JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
+| Keenable | `osp-keenable` | `KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
+| Linkup | `osp-linkup` | `LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
+| Metaso | `osp-metaso` | `METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
+| Querit | `osp-querit` | `QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
+| SerpApi | `osp-serpapi` | `SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；另有其自带的免费 1 小时服务端缓存 |
+| Serper | `osp-serper` | `SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
+| You.com | `osp-youcom` | `YDC_API_KEY` | 否 | 网页与新闻结果合并；多种正文抽取模式 |
 
 ## 配置
 

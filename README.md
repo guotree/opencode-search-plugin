@@ -14,12 +14,12 @@ This repository adds plugins for ten more of them, taking the pool from five pro
 
 ## Install
 
-Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@1.1.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all ten); use the third for one or two files only.
+Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.0.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all ten); use the third for one or two files only.
 
 ### 1. From npm (recommended)
 
 ```sh
-# add @1.1.0 to pin
+# add @2.0.0 to pin
 opencode plugin add opencode-search-plugin
 ```
 
@@ -35,7 +35,7 @@ or declare it in `opencode.json(c)`:
 ### 2. From GitHub
 
 ```sh
-# add #v1.1.0 to pin
+# add #v2.0.0 to pin
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -74,7 +74,7 @@ Loading the package registers all ten, but a provider without a key never joins 
   "plugins": [
     {
       "package": "opencode-search-plugin",
-      "options": { "disable": ["serper", "serpapi", "youcom"] }
+      "options": { "disable": ["osp-serper", "osp-serpapi", "osp-youcom"] }
     }
   ]
 }
@@ -93,7 +93,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form — naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one — `@1.1.0` on npm, `#v1.1.0` on GitHub — stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
+The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form — naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one — `@2.0.0` on npm, `#v2.0.0` on GitHub — stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
 
 ## Uninstall
 
@@ -123,22 +123,24 @@ Once keys are in place, pick how OpenCode chooses among them:
 { "websearch": { "provider": "random" } }
 ```
 
-`random` spreads queries across every bound provider. Set it to a specific ID such as `"brave"` to pin one, or `false` to turn web search off.
+`random` spreads queries across every bound provider. Set it to a specific ID such as `"osp-brave"` to pin one, or `false` to turn web search off.
 
 ## Providers
 
+Every ID below carries an `osp-` prefix — this package's namespace. OpenCode's own providers register bare vendor names (`exa`, `tavily`), and a vendor's official plugin would do the same, so the prefix is what keeps those entries from colliding with ours — both in the websearch pool and in the `/connect` table, where credentials are keyed by integration ID. Use the prefixed form verbatim in `websearch.provider` and in `disable`.
+
 | Provider | ID | Key (env / `/connect`) | Anonymous | Notes |
 | --- | --- | --- | --- | --- |
-| AnySearch | `anysearch` | `ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
-| Brave Search | `brave` | `BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
-| Jina | `jina` | `JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
-| Keenable | `keenable` | `KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
-| Linkup | `linkup` | `LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
-| Metaso | `metaso` | `METASO_API_KEY` | no | Billed per search, not per result |
-| Querit | `querit` | `QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
-| SerpApi | `serpapi` | `SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
-| Serper | `serper` | `SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
-| You.com | `youcom` | `YDC_API_KEY` | no | Web and news merged; extraction modes |
+| AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
+| Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
+| Jina | `osp-jina` | `JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
+| Keenable | `osp-keenable` | `KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
+| Linkup | `osp-linkup` | `LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
+| Metaso | `osp-metaso` | `METASO_API_KEY` | no | Billed per search, not per result |
+| Querit | `osp-querit` | `QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
+| SerpApi | `osp-serpapi` | `SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
+| Serper | `osp-serper` | `SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
+| You.com | `osp-youcom` | `YDC_API_KEY` | no | Web and news merged; extraction modes |
 
 ## Configuration
 

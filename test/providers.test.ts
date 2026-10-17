@@ -26,7 +26,7 @@ afterEach(() => {
  * provider does beyond this is asserted in its own test file.
  */
 /** Providers with an anonymous tier, which never gate on a key. */
-const KEYLESS = new Set(["anysearch", "keenable"])
+const KEYLESS = new Set(["osp-anysearch", "osp-keenable"])
 
 describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
   const modulePath = `../plugins/${spec.file}`
