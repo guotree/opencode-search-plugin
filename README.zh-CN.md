@@ -8,7 +8,7 @@
 
 **不用 API key，装上就能搜。**
 
-一条命令，给 OpenCode v2 加上十二个搜索 provider，搜索池从五家扩到十七家。AnySearch 和 Keenable 不用 key 直接能用；其余十家等你配好 key 才会启用。
+一条命令，给 OpenCode v2 加上十三个搜索 provider，搜索池从五家扩到十八家。AnySearch 和 Keenable 不用 key 直接能用；其余十一家等你配好 key 才会启用。
 
 ```sh
 opencode plugin add opencode-search-plugin
@@ -19,19 +19,19 @@ opencode plugin add opencode-search-plugin
 <!-- TODO: 录一段 10 秒 GIF 后替换本注释：
      提问 → websearch 工具触发 → 结果返回 -->
 
-十二个 provider 装一次全有，想用哪家用哪家：
+十三个 provider 装一次全有，想用哪家用哪家：
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## 为什么做这个插件
 
 OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。在这个范围之外，还有大量搜索 API 提供免费额度或免费层级，足以支撑 agent 的日常检索而不必为此付费。
 
-本仓库为其中十二家补上了插件，把可用池从五个 provider 扩到十七个。AnySearch 和 Keenable 无需任何 key 即可使用；其余十家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
+本仓库为其中十三家补上了插件，把可用池从五个 provider 扩到十八个。AnySearch 和 Keenable 无需任何 key 即可使用；其余十一家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.2.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十二个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.2.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十三个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
@@ -84,7 +84,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 ### 跳过你没有 key 的服务
 
-装包会注册全部十二家，但没有 key 的 provider 永远不会进入搜索池（见下文[密钥](#密钥)）。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
+装包会注册全部十三家，但没有 key 的 provider 永远不会进入搜索池（见下文[密钥](#密钥)）。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
 
 ```jsonc
 {
@@ -182,6 +182,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | Keenable | `osp-keenable` | `KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
 | Linkup | `osp-linkup` | `LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
 | Metaso | `osp-metaso` | `METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
+| Ollama | `osp-ollama` | `OLLAMA_API_KEY` | 否 | 个人档免费；每条 content 是整页 markdown，上下文偏重；上限 10 条，且不带日期 |
 | Querit | `osp-querit` | `QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
 | SerpApi | `osp-serpapi` | `SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；另有其自带的免费 1 小时服务端缓存 |
 | Serper | `osp-serper` | `SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
@@ -191,7 +192,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 所有配置项都是环境变量，OpenCode 启动时读取一次，改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
 
-### 十二家通用
+### 十三家通用
 
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -265,6 +266,12 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `METASO_SEARCH_SIZE` | `20` | 每次搜索的结果数，限制在 1–100 |
 | `METASO_INCLUDE_RAW_CONTENT` | 关 | `true` 返回每条命中的完整原文，搜索成本不变，但上下文 token 大幅增加 |
 
+### Ollama
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `OLLAMA_MAX_RESULTS` | `5` | 每次搜索的结果数，限制在 1–10（API 的上限）。`content` 是整页 markdown 而非 snippet，即使默认 5 条也是数千字符的上下文 |
+
 ### Querit
 
 | 变量 | 默认值 | 含义 |
@@ -323,6 +330,7 @@ opencode api get "/api/websearch/provider"
 
 - 某家 provider 不在池里：它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
 - 搜索报错 `Keenable rate limited the request (HTTP 429)`：无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
+- 搜索报错 `Ollama API error 401`：`OLLAMA_API_KEY` 必须是 [ollama.com/settings/keys](https://ollama.com/settings/keys) 的账号 key。如果它存的是某个 Ollama 兼容代理的 token（OpenCode 官方文档里就有这种配置形状），到 `/connect` 给 **Ollama Search (osp)** 存一把真 key——/connect 凭据优先于环境变量。
 - 搜索报错 `Bocha balance is exhausted (HTTP 403)`：账户余额用尽；到 [open.bocha.cn](https://open.bocha.cn) 充值。报错会带上博查自己的 `message` 文本和一个 `log_id`，联系他们客服时请附上。
 - 搜索报错 `Bocha rate limited the request (HTTP 429)`：单账户的请求上限与总充值金额挂钩，余额少则天花板低。博查返回了 `Retry-After` 时，报错里会带上 `retry after Ns` 提示。
 - 搜索报错 `Connect X in /connect, or set X_API_KEY`：key 在绑定和搜索之间消失了。重新连接或重新导出。

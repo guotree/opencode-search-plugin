@@ -8,7 +8,7 @@
 
 **Web search for OpenCode that works out of the box, no API key needed.**
 
-One command adds twelve search providers to OpenCode v2, growing the pool from five to seventeen. AnySearch and Keenable work with no setup at all; the other ten only activate once you add a key.
+One command adds thirteen search providers to OpenCode v2, growing the pool from five to eighteen. AnySearch and Keenable work with no setup at all; the other eleven only activate once you add a key.
 
 ```sh
 opencode plugin add opencode-search-plugin
@@ -19,19 +19,19 @@ Install it, then just ask OpenCode something that needs the web.
 <!-- TODO: replace this comment with a 10-second GIF once you record one:
      ask a question → the websearch tool fires → results come back -->
 
-Twelve providers in one package, use whichever you like:
+Thirteen providers in one package, use whichever you like:
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## Why this exists
 
 OpenCode v2 ships with five web search providers built in: `exa`, `firecrawl`, `parallel`, `tavily` and `tinyfish`. Outside that set, a much wider field of search APIs offers free quotas or free tiers, enough to run an agent's searches without paying for the privilege.
 
-This repository adds plugins for twelve more of them, taking the pool from five providers to seventeen. AnySearch and Keenable run without a key at all; the other ten bind only when you supply one, so installing this package never routes a query to a provider that would immediately fail. Which of them are worth your time depends on the free tier each one currently offers, so check a provider's pricing before you rely on it.
+This repository adds plugins for thirteen more of them, taking the pool from five providers to eighteen. AnySearch and Keenable run without a key at all; the other eleven bind only when you supply one, so installing this package never routes a query to a provider that would immediately fail. Which of them are worth your time depends on the free tier each one currently offers, so check a provider's pricing before you rely on it.
 
 ## Install
 
-Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.2.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all twelve); use the third for one or two files only.
+Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.2.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all thirteen); use the third for one or two files only.
 
 ### 1. From npm (recommended)
 
@@ -84,7 +84,7 @@ For a location that is not auto-discovered, list it explicitly:
 
 ### Skip the services you have no key for
 
-Loading the package registers all twelve, but a provider without a key never joins the search pool; see [Keys](#keys). To keep some out of the registry entirely, use either or both of these optional options:
+Loading the package registers all thirteen, but a provider without a key never joins the search pool; see [Keys](#keys). To keep some out of the registry entirely, use either or both of these optional options:
 
 ```jsonc
 {
@@ -182,6 +182,7 @@ The namespace also shows on the display name: `/connect` lists each of this pack
 | Keenable | `osp-keenable` | `KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
 | Linkup | `osp-linkup` | `LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
 | Metaso | `osp-metaso` | `METASO_API_KEY` | no | Billed per search, not per result |
+| Ollama | `osp-ollama` | `OLLAMA_API_KEY` | no | Free personal tier; each hit carries the full page as markdown, so results are context-heavy, capped at 10, and carry no dates |
 | Querit | `osp-querit` | `QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
 | SerpApi | `osp-serpapi` | `SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
 | Serper | `osp-serper` | `SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
@@ -191,7 +192,7 @@ The namespace also shows on the display name: `/connect` lists each of this pack
 
 Knobs are environment variables, read once when OpenCode starts; change one and restart. Defaults match what each API documents, so leaving them unset is the right starting point.
 
-### Shared by all twelve
+### Shared by all thirteen
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -265,6 +266,12 @@ Knobs are environment variables, read once when OpenCode starts; change one and 
 | `METASO_SEARCH_SIZE` | `20` | Results per search, clamped to 1–100 |
 | `METASO_INCLUDE_RAW_CONTENT` | off | `true` returns every hit's full source text at the same search cost, but far more context tokens |
 
+### Ollama
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OLLAMA_MAX_RESULTS` | `5` | Results per search, clamped to 1–10 (the API's maximum). `content` is a whole page of markdown rather than a snippet, so even the default 5 results run to thousands of characters of context |
+
 ### Querit
 
 | Variable | Default | Meaning |
@@ -323,6 +330,7 @@ Also worth checking:
 
 - **A provider is missing from the pool**: it has no key, or `disable` (or a narrow `enable`) filtered it out. Run `/connect` or export its variable, then restart; credential changes made in `/connect` rebind without one. A name that should be there but is not is often a typo: the log flags unknown IDs and any `enable`/`disable` overlap.
 - **A search fails with `Keenable rate limited the request (HTTP 429)`**: the keyless pool is capped at 1,000 requests an hour and 10 a second per IP, shared with the rest of your egress address. Set `KEENABLE_API_KEY` to draw on your own allowance instead.
+- **A search fails with `Ollama API error 401`**: `OLLAMA_API_KEY` must be an ollama.com account key from [ollama.com/settings/keys](https://ollama.com/settings/keys). If it instead holds a bearer token for an Ollama-compatible proxy (a documented OpenCode config shape), store the real key in `/connect` for **Ollama Search (osp)** — a /connect credential outranks the environment.
 - **A search fails with `Bocha balance is exhausted (HTTP 403)`**: the account balance is spent; top up at [open.bocha.cn](https://open.bocha.cn). The message carries Bocha's own `message` text and a `log_id` to quote to their support.
 - **A search fails with `Bocha rate limited the request (HTTP 429)`**: the per-account request cap scales with the total recharge amount, so a small balance means a small ceiling. The report includes a `retry after Ns` hint when Bocha sent one.
 - **A search fails with `Connect X in /connect, or set X_API_KEY`**: the key disappeared between binding and searching. Reconnect or re-export.

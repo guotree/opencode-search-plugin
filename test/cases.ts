@@ -206,6 +206,26 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "ollama-search",
+    pluginID: "ollama-search",
+    providerID: "osp-ollama",
+    displayName: "Ollama Search",
+    envKey: "OLLAMA_API_KEY",
+    // The hosted API's flat envelope: results only, no dates, no wrapper.
+    response: {
+      results: [
+        {
+          title: "Ollama hit",
+          url: "https://example.com/ollama",
+          content: "Ollama content",
+        },
+      ],
+    },
+    expected: [
+      { url: "https://example.com/ollama", title: "Ollama hit", content: "Ollama content" },
+    ],
+  },
+  {
     file: "querit-search",
     pluginID: "querit-search",
     providerID: "osp-querit",

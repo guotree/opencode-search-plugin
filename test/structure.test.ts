@@ -107,6 +107,7 @@ const WITH_TIMEOUT = [
   "keenable-search",
   "linkup-search",
   "metaso-search",
+  "ollama-search",
   "querit-search",
   "serpapi-search",
   "serper-search",

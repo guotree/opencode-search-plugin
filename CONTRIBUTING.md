@@ -5,7 +5,7 @@
 Each provider is **one self-contained `.ts` file**, living in `plugins/`:
 
 ```text
-index.ts          package entrypoint; composes the twelve providers
+index.ts          package entrypoint; composes the thirteen providers
 plugins/          the providers, each one independently copyable
 test/             contract tests, harness, and structure guards
 scripts/          manual sync into a local OpenCode config
@@ -30,11 +30,11 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
-| `envInt` / `envStr` | all twelve | Environment knobs read once at load time |
-| `cacheKey` / `readCache` / `writeCache` | all twelve | Repeat queries are billed dispatches |
-| `timedSignal` | all twelve | The host applies no deadline around `execute` |
+| `envInt` / `envStr` | all thirteen | Environment knobs read once at load time |
+| `cacheKey` / `readCache` / `writeCache` | all thirteen | Repeat queries are billed dispatches |
+| `timedSignal` | all thirteen | The host applies no deadline around `execute` |
 | `parseSearchDate` and its tables | bocha, brave, deepseek, keenable, metaso, querit, serpapi, serper, youcom | Relative and absolute date shapes, plus the `Date.parse` trap |
-| `soften` | all twelve | The host types the credential API's failure channel as `unknown` |
+| `soften` | all thirteen | The host types the credential API's failure channel as `unknown` |
 
 Files with no date field (anysearch, jina, linkup) must not carry `parseSearchDate`. The structure test asserts that too.
 
@@ -75,6 +75,7 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | `test/brave-search.test.ts` | Brave-specific request construction and env knobs |
 | `test/jina-search.test.ts` | The one provider whose deadline default varies by mode |
 | `test/keenable-search.test.ts` | Keyless routing between the public and keyed endpoints, and the 402/429 reports |
+| `test/ollama-search.test.ts` | Ollama's request body, the 1–10 clamp, and the flat-result mapping |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
 | `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |

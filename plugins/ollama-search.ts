@@ -1,0 +1,253 @@
+import { Plugin } from "@opencode/plugin/effect"
+import { Effect, Schema, Stream } from "effect"
+
+// Ollama's hosted search answers with the flattest envelope in this package:
+// `results` carries the hits, each a title, a URL and the page's own markdown
+// -- hundreds to tens of thousands of characters, because `content` is the
+// fetched page, not a snippet -- with no wrapper fields and, unlike every
+// other provider here, no dates. Every field but the URL is optional, and a
+// missing one means "Ollama provided none", not an error.
+const OllamaResponse = Schema.Struct({
+  results: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        title: Schema.optional(Schema.String),
+        url: Schema.String,
+        content: Schema.optional(Schema.String),
+      }),
+    ),
+  ),
+})
+
+// The /connect integration ID, and the websearch provider ID it binds to.
+// The `osp-` prefix is this package's namespace: OpenCode's built-ins and a
+// vendor plugin's own entry are bare vendor names, and OpenCode's own `ollama`
+// model provider already registers one, so the bare name is spoken for -- the
+// prefix is what keeps this websearch entry and its /connect row distinct from
+// that model provider, and from the opencode.db row keyed by integration ID.
+const ID = "osp-ollama"
+
+// Ollama returns no publication date, so results carry an empty time record.
+function toResult(item: {
+  title?: string | undefined
+  url: string
+  content?: string | undefined
+}) {
+  return {
+    url: item.url,
+    // The URL is the one field the schema insists on, so it is also the one
+    // thing a title can fall back to rather than leave the result untitled.
+    title: item.title || item.url,
+    content: item.content ?? "",
+    time: {},
+  }
+}
+
+type SearchResult = ReturnType<typeof toResult>
+
+function envInt(name: string, fallback: number): number {
+  const raw = (process.env[name] ?? "").trim()
+  if (raw === "") return fallback
+  const value = Number(raw)
+  return Number.isFinite(value) && value >= 0 ? value : fallback
+}
+
+function envStr(name: string): string {
+  return (process.env[name] ?? "").trim()
+}
+
+// Web search rides on an Ollama account: the API is hosted at ollama.com, not
+// served by the local model runner (the official SDKs hardcode that host, and
+// the local server neither proxies this endpoint nor reads this key). A
+// generous free tier covers individual use, and the API caps a search at 10
+// results, which is the clamp below. Knobs are read once at load time, so
+// restart after changing them.
+//
+//   OLLAMA_CACHE_TTL     ms to reuse a response for the same query (0 disables)
+//   OLLAMA_MAX_RESULTS   results per search, clamped to 1-10 (the API's range).
+//                        `content` is a whole page of markdown, not a snippet,
+//                        so the default of 5 already means thousands of
+//                        characters of context per search
+//   OLLAMA_TIMEOUT       ms to wait before failing (0 removes the deadline)
+//   OLLAMA_API_KEY       required; from https://ollama.com/settings/keys.
+//                        The vendor-canonical name, which the official SDKs
+//                        also read, so one key serves both. A /connect
+//                        credential outranks it, which matters when this
+//                        variable instead holds a bearer token for an
+//                        Ollama-compatible proxy -- a documented config shape
+//                        whose token would be refused by ollama.com.
+const CACHE_TTL = envInt("OLLAMA_CACHE_TTL", 600_000)
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("OLLAMA_TIMEOUT", 25_000)
+const MAX_RESULTS = Math.min(Math.max(envInt("OLLAMA_MAX_RESULTS", 5), 1), 10)
+
+const SEARCH_URL = "https://ollama.com/api/web_search"
+
+const CACHE_LIMIT = 200
+const cache = new Map<string, { at: number; results: SearchResult[] }>()
+
+function cacheKey(query: string): string {
+  return query.trim().replace(/\s+/g, " ")
+}
+
+function readCache(queryKey: string): SearchResult[] | undefined {
+  if (CACHE_TTL <= 0) return undefined
+  const hit = cache.get(queryKey)
+  return hit && Date.now() - hit.at < CACHE_TTL ? hit.results : undefined
+}
+
+function writeCache(queryKey: string, results: SearchResult[]): void {
+  if (CACHE_TTL <= 0) return
+  cache.set(queryKey, { at: Date.now(), results })
+  if (cache.size > CACHE_LIMIT) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
+}
+
+export const effect = (ctx: Plugin.Context) =>
+  Effect.gen(function* () {
+    // Make "Ollama" show up in /connect with an API-key method.
+    yield* ctx.integration.transform((editor) => {
+      editor.update(ID, (integration) => {
+        integration.name = "Ollama Search (osp)"
+      })
+      editor.method.update({
+        integrationID: ID,
+        method: { type: "key", label: "Ollama API key" },
+      })
+      editor.method.update({
+        integrationID: ID,
+        method: { type: "env", names: ["OLLAMA_API_KEY"] },
+      })
+    })
+
+    // The host instantiates this API's failure channel as `unknown`, which would
+    // make the whole plugin effect unrunnable. A credential read must never take
+    // the plugin down: a failed read degrades to "no stored key", and the
+    // environment fallback below applies exactly as it does when the credential
+    // simply does not exist.
+    const soften = <A>(read: Effect.Effect<A, unknown>): Effect.Effect<A | undefined, never> =>
+      read.pipe(Effect.catch(() => Effect.succeed(undefined)))
+
+    // The key comes from the /connect credential, falling back to the
+    // environment. Resolved per call so a rotated key needs no restart.
+    const resolveKey = () =>
+      Effect.gen(function* () {
+        const connection = yield* soften(ctx.integration.connection.active(ID))
+        const credential = connection
+          ? yield* soften(ctx.integration.connection.resolve(connection))
+          : undefined
+        return credential?.type === "key" ? credential.key : process.env.OLLAMA_API_KEY
+      })
+
+    // Web search requires an Ollama account, so the provider binds only while
+    // a key exists. Deleting the key unbinds it, and `random` can never pick a
+    // keyless Ollama. The transform replays on reload and reads `bound` as it
+    // stands then.
+    let bound = Boolean(yield* resolveKey())
+
+    yield* ctx.websearch.transform((editor) => {
+      if (!bound) return
+      editor.add({
+        id: ID,
+        name: "Ollama Search",
+        execute: ({ query }) =>
+          Effect.gen(function* () {
+            const queryKey = cacheKey(query)
+            const cached = readCache(queryKey)
+            if (cached) return cached
+
+            // Rechecked per call: binding can lag a key deletion by the
+            // event round-trip, so this keeps that window explicit.
+            const key = yield* resolveKey()
+            if (!key) {
+              return yield* Effect.fail(
+                new Error("Connect Ollama in /connect, or set OLLAMA_API_KEY"),
+              )
+            }
+
+            const response = yield* Effect.tryPromise({
+              try: (signal) =>
+                fetch(SEARCH_URL, {
+                  method: "POST",
+                  headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + key,
+                  },
+                  body: JSON.stringify({
+                    query: queryKey,
+                    max_results: MAX_RESULTS,
+                  }),
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
+                }),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("Ollama search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Ollama request failed: " + String(error)),
+            })
+
+            if (!response.ok) {
+              // A bad key answers 401 with `{"error":"Unauthorized"}` (checked
+              // against the live API); the body rides along verbatim, so any
+              // shape Ollama adds later is reported rather than mistranslated.
+              const detail = yield* Effect.tryPromise({
+                try: () => response.text(),
+                catch: () => new Error("response body unavailable"),
+              })
+              return yield* Effect.fail(
+                new Error("Ollama API error " + response.status + ": " + detail),
+              )
+            }
+
+            const json = yield* Effect.tryPromise({
+              try: () => response.json(),
+              catch: (error) => new Error("Invalid Ollama response: " + String(error)),
+            })
+
+            const body = yield* Schema.decodeUnknownEffect(OllamaResponse)(json)
+            const results = (body.results ?? []).map(toResult)
+
+            writeCache(queryKey, results)
+            return results
+          }),
+      })
+    })
+
+    // Rebind on credential changes: connect, delete, or rotate a key and the
+    // provider joins or leaves the websearch pool without a restart. Env-var
+    // keys cannot change under a running process, so they bind at startup.
+    yield* Effect.forkScoped(
+      ctx.event.subscribe().pipe(
+        Stream.filter(
+          (event) =>
+            event.type === "credential.updated" ||
+            event.type === "credential.switched" ||
+            event.type === "integration.updated",
+        ),
+        Stream.mapEffect(() =>
+          Effect.gen(function* () {
+            const next = Boolean(yield* resolveKey())
+            if (next === bound) return
+            bound = next
+            yield* ctx.websearch.reload()
+          }),
+        ),
+        Stream.runDrain,
+      ),
+    )
+  })
+
+export default Plugin.define({ id: "ollama-search", effect })

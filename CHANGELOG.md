@@ -23,6 +23,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   documented "Z" -> "+08:00" rewrite as its fallback, pinned by comment to
   the API's promised v2 fix. The envelope, the `summary` switch, `freshness`
   and the 401 refusal body were all checked against the live API.
+- **Ollama** (`plugins/ollama-search.ts`), the thirteenth provider, on the
+  hosted Web Search API at `ollama.com/api/web_search` (`osp-ollama`,
+  `OLLAMA_API_KEY`). The key name is the vendor-canonical one that Ollama's
+  own SDKs read, so a single account key serves both, and a /connect
+  credential outranks the environment for when it holds something else (a
+  bearer token for an Ollama-compatible proxy, say). The response is the
+  flattest in this package -- `results` of `{title, url, content}`, no
+  wrapper and no dates -- so the file carries no date parser at all, and
+  `content` turns out to be the whole page as markdown rather than a
+  snippet, which is what makes `OLLAMA_MAX_RESULTS` (the API's own default
+  of 5, clamped to its 1-10) the knob that matters for context. Envelope,
+  `max_results` and the 401 body (`{"error":"Unauthorized"}`) were checked
+  against the live API.
 
 ### Fixed
 
