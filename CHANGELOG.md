@@ -6,7 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-18
+
 ### Added
+
+- **DeepSeek** (`plugins/deepseek-search.ts`), the eleventh provider, on the
+  Search API DeepSeek opened on 2026-10-17 (`POST /v1/tools/search`, the
+  in-house engine behind its own app). It authenticates with the same
+  `DEEPSEEK_API_KEY` as chat and has no anonymous tier, so it binds exactly
+  like the other key-requiring providers. Billing is per successful request —
+  $0.75 (¥5) per 1,000, with failures and empty results unbilled — under an
+  account-wide 5 QPS cap, which makes the shared response cache the difference
+  between paying for repeat queries and not. `content` maps `summary`, the
+  field the API documents as "intended to be read by a model", rather than
+  `need_content` page text, which would bloat the agent's context; `date`
+  arrives as RFC 3339 and joins the shared date parser. Knob:
+  `DEEPSEEK_COUNT` (1–50, default 10 — price does not scale with results).
+  Query operators (`site:`, `lang:`, `after:`/`before:`) pass through
+  untouched.
 
 - **`enable` plugin option**, an allow-list shaped like `disable`: only the IDs
   it names are registered. Both options are optional, either can be used alone,
@@ -22,6 +39,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that is not an array, an `enable`/`disable` overlap, and an `enable` list
   that matches no known provider (which leaves the pool empty, and now says so).
   `disable`-only configuration behaves exactly as before.
+
+### Changed
+
+- The pinned version named throughout both READMEs is now `@2.1.0`.
 
 ## [2.0.0] - 2026-10-17
 
@@ -141,7 +162,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.0
 [2.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.0.0
 [1.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.1.0
 [1.0.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.0.1
