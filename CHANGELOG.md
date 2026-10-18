@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-19
+
 ### Added
 
 - **Bocha** (`plugins/bocha-search.ts`), the twelfth provider, on the
@@ -258,7 +260,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.0.0
 [2.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.2.0
 [2.1.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.1
 [2.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.0
