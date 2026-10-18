@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-18
+
+### Changed
+
+- **`(osp)` marker on every `/connect` entry.** Each integration this package
+  registers now carries the namespace on its display name — `DeepSeek (osp)`
+  beside OpenCode's built-in `DeepSeek`, `Serper (osp)` and likewise for the
+  rest — so a key saved through `/connect` cannot be mistaken for a built-in
+  provider's. The websearch pool keeps the plain provider name: the pool holds
+  only search providers, where the collision does not exist. Credentials are
+  keyed by integration ID and are unaffected.
+- The pinned version named throughout both READMEs is now `@2.1.1`.
+
 ## [2.1.0] - 2026-10-18
 
 ### Added
@@ -162,7 +175,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.1
 [2.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.0
 [2.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.0.0
 [1.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v1.1.0
