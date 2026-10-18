@@ -4,7 +4,7 @@
 
 十一个相互独立的 [OpenCode](https://opencode.ai) v2 插件，各自注册一个网页搜索 provider。每个文件都能单独使用：复制一个进你的插件目录，或者安装这个包一次拿全十一个。
 
-[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## 为什么做这个插件
 

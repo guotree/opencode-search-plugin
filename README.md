@@ -4,7 +4,7 @@
 
 Eleven self-contained [OpenCode](https://opencode.ai) v2 plugins that register web search providers. Each file stands on its own: copy one into your plugins directory, or install the package to get all eleven.
 
-[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## Why this exists
 
