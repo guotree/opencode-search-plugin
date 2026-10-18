@@ -44,7 +44,7 @@ Three IDs appear on every plugin, and renaming any of them breaks users:
 | ID | Set in | Used by |
 | --- | --- | --- |
 | `<file>` e.g. `brave-search` | `Plugin.define({ id })` | `plugins` entries and `-` disable control |
-| `const ID` e.g. `osp-brave` | `editor.add({ id })` and `editor.update(ID)` | `websearch.provider`, the `disable` option, `/api/websearch/provider` |
+| `const ID` e.g. `osp-brave` | `editor.add({ id })` and `editor.update(ID)` | `websearch.provider`, the `enable`/`disable` options, `/api/websearch/provider` |
 | `const ID` | `editor.method.update({ integrationID })` | Credentials saved in `/connect` |
 
 The plugin ID equals the filename; the provider ID equals the integration ID. Both are asserted in `test/structure.test.ts`, because a credential saved against one ID is invisible to code reading the other.
@@ -70,7 +70,7 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | `test/providers.test.ts` | The contract every provider must satisfy: binding, `/connect` wiring, mapping, caching, error status, rebind |
 | `test/brave-search.test.ts` | Brave-specific request construction and env knobs |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
-| `test/index.test.ts` | Aggregate registration and the `disable` option |
+| `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |
 | `test/harness.ts` | The fake plugin context, credential sequences, fetch recorder |
 

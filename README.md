@@ -67,7 +67,7 @@ For a location that is not auto-discovered, list it explicitly:
 
 ### Skip the services you have no key for
 
-Loading the package registers all ten, but a provider without a key never joins the search pool — see [Keys](#keys). To keep them out of the registry entirely:
+Loading the package registers all ten, but a provider without a key never joins the search pool — see [Keys](#keys). To keep some out of the registry entirely, use either or both of these optional options:
 
 ```jsonc
 {
@@ -80,7 +80,31 @@ Loading the package registers all ten, but a provider without a key never joins 
 }
 ```
 
-`disable` takes the provider IDs listed in the table below. AnySearch and Keenable need no key, so `disable` is the only way to keep those two out of the pool.
+- `disable` is a deny-list: it never registers the IDs it names — the provider IDs in the table below. AnySearch and Keenable need no key, so `disable` is the only way to keep those two out of the pool.
+- `enable` is an allow-list: only the IDs it names are registered, and everything else is skipped — `"enable": ["osp-brave", "osp-jina"]` runs those two alone.
+
+When both are set, **`disable` wins on any overlap**. A per-provider exclusion is never overridden by a bulk allow-list:
+
+```jsonc
+{
+  "options": {
+    "enable": ["osp-brave", "osp-jina", "osp-serper"],
+    "disable": ["osp-serper", "osp-youcom"]
+    // osp-serper stays out: disable overrides enable.
+    // osp-youcom was never allowed in; that entry is inert.
+  }
+}
+```
+
+Read as set arithmetic, the registered pool is `enable − disable`. The overlap drops out; a `disable` ID the allow-list never contained was never a candidate to begin with — redundant, but harmless and unreported. The overlap is the only redundancy that earns a warning, and the log names the IDs in it.
+
+```text
+enable  = {osp-brave, osp-jina, osp-serper, osp-keenable, osp-linkup}
+disable = {osp-keenable, osp-linkup, osp-youcom}
+pool    =  osp-brave, osp-jina          -- enable minus disable
+```
+
+Configuration that cannot take effect is reported in the log rather than silently dropped: an ID this package does not register (a typo) is named, as is an option that is not an array. An `enable` list that ends up naming no known provider leaves the pool empty — the log says so.
 
 ## Upgrade
 
@@ -104,7 +128,7 @@ opencode plugin remove opencode-search-plugin
 opencode plugin remove github:guotree/opencode-search-plugin
 ```
 
-The same rule: pass the specifier you installed with. The command edits the global configuration; if the plugin is instead a `plugins` entry in `opencode.json(c)` or a locally copied file, delete the entry or the copied `.ts` file. Saved `/connect` credentials are untouched — a reinstall finds them again — and to turn off a few providers instead of the whole plugin, use `disable` above.
+The same rule: pass the specifier you installed with. The command edits the global configuration; if the plugin is instead a `plugins` entry in `opencode.json(c)` or a locally copied file, delete the entry or the copied `.ts` file. Saved `/connect` credentials are untouched — a reinstall finds them again — and to turn off a few providers instead of the whole plugin, use `enable`/`disable` above.
 
 ## Keys
 
@@ -127,7 +151,7 @@ Once keys are in place, pick how OpenCode chooses among them:
 
 ## Providers
 
-Every ID below carries an `osp-` prefix — this package's namespace. OpenCode's own providers register bare vendor names (`exa`, `tavily`), and a vendor's official plugin would do the same, so the prefix is what keeps those entries from colliding with ours — both in the websearch pool and in the `/connect` table, where credentials are keyed by integration ID. Use the prefixed form verbatim in `websearch.provider` and in `disable`.
+Every ID below carries an `osp-` prefix — this package's namespace. OpenCode's own providers register bare vendor names (`exa`, `tavily`), and a vendor's official plugin would do the same, so the prefix is what keeps those entries from colliding with ours — both in the websearch pool and in the `/connect` table, where credentials are keyed by integration ID. Use the prefixed form verbatim in `websearch.provider` and in `enable`/`disable`.
 
 | Provider | ID | Key (env / `/connect`) | Anonymous | Notes |
 | --- | --- | --- | --- | --- |
@@ -253,20 +277,20 @@ Dates are parsed from relative phrases (`3 hours ago`, `3小时前`), absolute f
 opencode plugin list
 
 # Which providers are actually in the pool?
-# A provider missing here has no key, or is listed in `disable`.
-# AnySearch and Keenable are always present, since neither needs one.
+# A provider missing here has no key, or `enable`/`disable` kept it out.
+# AnySearch and Keenable are always present, since neither needs a key.
 opencode api get "/api/websearch/provider"
 ```
 
 Also worth checking:
 
-- **A provider is missing from the pool** — it has no key. Run `/connect` or export its variable, then restart; credential changes made in `/connect` rebind without one.
+- **A provider is missing from the pool** — it has no key, or `disable` (or a narrow `enable`) filtered it out. Run `/connect` or export its variable, then restart; credential changes made in `/connect` rebind without one. A name that should be there but is not is often a typo: the log flags unknown IDs and any `enable`/`disable` overlap.
 - **A search fails with `Keenable rate limited the request (HTTP 429)`** — the keyless pool is capped at 1,000 requests an hour and 10 a second per IP, shared with the rest of your egress address. Set `KEENABLE_API_KEY` to draw on your own allowance instead.
 - **A search fails with `Connect X in /connect, or set X_API_KEY`** — the key disappeared between binding and searching. Reconnect or re-export.
 - **Everything is slow or burning credits** — leave `*_CACHE_TTL` at its default. Repeated queries within the window are served from memory.
 - **Nothing happens after editing a plugin file** — OpenCode watches plugins and reloads them; if it does not, `opencode service restart`.
 
-Logs live at `~/.local/share/opencode/log/opencode.log`; filter for `loading plugin` to see every plugin OpenCode resolved, with its entrypoint.
+Logs live at `~/.local/share/opencode/log/opencode.log`; filter for `loading plugin` to see every plugin OpenCode resolved, with its entrypoint. Warnings this plugin emits about `enable`/`disable` land in the same file, carrying a `[opencode-search-plugin]` prefix.
 
 ## Development
 

@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`enable` plugin option**, an allow-list shaped like `disable`: only the IDs
+  it names are registered. Both options are optional, either can be used alone,
+  and both may be set at once — when they are, **deny wins**: an ID named by
+  `disable` stays out even when `enable` lists it, so a per-provider exclusion
+  is never overridden by a bulk allow-list. The registered set is therefore
+  `enable − disable`: the overlap drops out, and a `disable` ID the allow-list
+  never contained is inert — redundant but harmless, and not reported. The failure
+  direction is the safe one: wrongly excluding a provider costs a search source,
+  while wrongly including one routes queries to a service meant to be off.
+  Configuration that cannot take effect is now reported in the log rather than
+  acted on silently — an ID no provider in this package registers, an option
+  that is not an array, an `enable`/`disable` overlap, and an `enable` list
+  that matches no known provider (which leaves the pool empty, and now says so).
+  `disable`-only configuration behaves exactly as before.
+
 ## [2.0.0] - 2026-10-17
 
 ### Changed

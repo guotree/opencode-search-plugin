@@ -67,7 +67,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 ### 跳过你没有 key 的服务
 
-装包会注册全部十家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现：
+装包会注册全部十家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
 
 ```jsonc
 {
@@ -80,7 +80,31 @@ opencode plugin add github:guotree/opencode-search-plugin
 }
 ```
 
-`disable` 填的是下表中的 provider ID。AnySearch 和 Keenable 不需要 key，想把这两家也排除在搜索池之外，只能用 `disable`。
+- `disable` 是黑名单：它列出的 provider ID（见下文[支持的服务](#支持的服务)的表格）永远不会注册。AnySearch 和 Keenable 不需要 key，想把这两家也排除在搜索池之外，只能用 `disable`。
+- `enable` 是白名单：只注册列出的 ID，其余一律跳过——`"enable": ["osp-brave", "osp-jina"]` 表示只跑这两家。
+
+两者同时配置时，**交集由 `disable` 胜出**：逐家的排除绝不会被批量白名单覆盖。
+
+```jsonc
+{
+  "options": {
+    "enable": ["osp-brave", "osp-jina", "osp-serper"],
+    "disable": ["osp-serper", "osp-youcom"]
+    // osp-serper 仍然不注册：disable 压过 enable。
+    // osp-youcom 本来就不在白名单里，这条是冗余的。
+  }
+}
+```
+
+用集合运算来读：实际注册的池 = `enable − disable`。交集被剔除；`disable` 里不在 `enable` 中的 ID 从一开始就不在候选内——属于无害的冗余，不会被报告。唯一会触发警告的冗余是交集，日志会点出其中的 ID。
+
+```text
+enable  = {osp-brave, osp-jina, osp-serper, osp-keenable, osp-linkup}
+disable = {osp-keenable, osp-linkup, osp-youcom}
+pool    =  osp-brave, osp-jina          -- enable 减 disable
+```
+
+无法生效的配置会在日志里提示，而不是被悄悄丢弃：写错的 ID（本包没注册的名字）会被点名，选项不是数组也会被点名。`enable` 如果最终一个已知 provider 都没匹配上，搜索池会是空的——日志里会写明这一点。
 
 ## 升级
 
@@ -104,7 +128,7 @@ opencode plugin remove opencode-search-plugin
 opencode plugin remove github:guotree/opencode-search-plugin
 ```
 
-同上：传入安装时使用的说明符。该命令修改的是全局配置；若插件是写在 `opencode.json(c)` 的 `plugins` 条目里或本地复制的文件，删掉对应条目、或删掉复制的 `.ts` 文件即可。`/connect` 里保存的密钥不受影响——重新装回就能继续用——只想关掉其中几家而不是整个插件，用上文的 `disable`。
+同上：传入安装时使用的说明符。该命令修改的是全局配置；若插件是写在 `opencode.json(c)` 的 `plugins` 条目里或本地复制的文件，删掉对应条目、或删掉复制的 `.ts` 文件即可。`/connect` 里保存的密钥不受影响——重新装回就能继续用——只想关掉其中几家而不是整个插件，用上文的 `enable`/`disable`。
 
 ## 密钥
 
@@ -127,7 +151,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 ## 支持的服务
 
-下表每个 ID 都带 `osp-` 前缀——这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `disable` 里请原样使用带前缀的 ID。
+下表每个 ID 都带 `osp-` 前缀——这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `enable`/`disable` 里请原样使用带前缀的 ID。
 
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -253,20 +277,20 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 opencode plugin list
 
 # 搜索池里到底有哪些 provider？
-# 这里少了一家，说明它没有 key，或者被写进了 `disable`。
+# 这里少了一家，说明它没有 key，或者被 `enable`/`disable` 排除了。
 # AnySearch 和 Keenable 永远在列，因为它们都不需要 key。
 opencode api get "/api/websearch/provider"
 ```
 
 另外几个值得检查的地方：
 
-- **某家 provider 不在池里** —— 它没有 key。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。
+- **某家 provider 不在池里** —— 它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
 - **搜索报错 `Keenable rate limited the request (HTTP 429)`** —— 无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
 - **搜索报错 `Connect X in /connect, or set X_API_KEY`** —— key 在绑定和搜索之间消失了。重新连接或重新导出。
 - **一切都很慢、或者积分烧得飞快** —— 把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。
 - **改了插件文件却没反应** —— OpenCode 会监视插件并自动重载；如果没有，执行 `opencode service restart`。
 
-日志在 `~/.local/share/opencode/log/opencode.log`；过滤 `loading plugin` 可以看到 OpenCode 解析到的每个插件及其入口文件。
+日志在 `~/.local/share/opencode/log/opencode.log`；过滤 `loading plugin` 可以看到 OpenCode 解析到的每个插件及其入口文件。本插件关于 `enable`/`disable` 的警告也落在同一个文件里，带 `[opencode-search-plugin]` 前缀。
 
 ## 开发
 

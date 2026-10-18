@@ -25,7 +25,7 @@ export interface HarnessOptions {
   credentialSequence?: ReadonlyArray<Credential | undefined>
   /** Events replayed to the plugin's subscription before the stream ends. */
   events?: ReadonlyArray<{ readonly type: string }>
-  /** Passed through as `ctx.options`, which `index.ts` reads for `disable`. */
+  /** Passed through as `ctx.options`, which `index.ts` reads for `enable`/`disable`. */
   options?: Readonly<Record<string, unknown>>
 }
 
