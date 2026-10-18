@@ -1,6 +1,6 @@
 {
   "name": "opencode-search-plugin",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Eleven self-contained websearch provider plugins for OpenCode v2: AnySearch, Brave, DeepSeek, Jina, Keenable, Linkup, Metaso, Querit, SerpApi, Serper and You.com.",
   "type": "module",
   "license": "MIT",
