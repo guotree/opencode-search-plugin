@@ -112,8 +112,12 @@ type SearchResult = ReturnType<typeof toResult>
 //
 //   DEEPSEEK_CACHE_TTL   ms to reuse a response for the same query (0 disables)
 //   DEEPSEEK_COUNT       results per search, clamped to 1-50
+//   DEEPSEEK_TIMEOUT     ms to wait before failing (0 removes the deadline)
 //   DEEPSEEK_API_KEY     required; from https://platform.deepseek.com
 const CACHE_TTL = envInt("DEEPSEEK_CACHE_TTL", 600_000)
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("DEEPSEEK_TIMEOUT", 25_000)
 const COUNT = Math.min(Math.max(envInt("DEEPSEEK_COUNT", 10), 1), 50)
 
 const CACHE_LIMIT = 200
@@ -136,6 +140,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -200,7 +212,7 @@ export const effect = (ctx: Plugin.Context) =>
             }
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch("https://api.deepseek.com/v1/tools/search", {
                   method: "POST",
                   headers: {
@@ -212,8 +224,14 @@ export const effect = (ctx: Plugin.Context) =>
                     query: queryKey,
                     count: COUNT,
                   }),
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("DeepSeek request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("DeepSeek search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("DeepSeek request failed: " + String(error)),
             })
 
             if (!response.ok) {

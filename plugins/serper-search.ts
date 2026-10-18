@@ -112,8 +112,12 @@ type SearchResult = ReturnType<typeof toResult>
 //   SERPER_HL          language code for results, e.g. "en", "zh-cn"
 //   SERPER_TBS         time filter: "qdr:h" (hour) "qdr:d" (day) "qdr:w" (week)
 //                      "qdr:m" (month) "qdr:y" (year)
+//   SERPER_TIMEOUT     ms to wait before failing (0 removes the deadline)
 //   SERPER_API_KEY     required; from https://serper.dev
 const CACHE_TTL = envInt("SERPER_CACHE_TTL", 600_000)
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("SERPER_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("SERPER_NUM", 10), 1), 100)
 const GL = envStr("SERPER_GL")
 const HL = envStr("SERPER_HL")
@@ -139,6 +143,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -203,7 +215,7 @@ export const effect = (ctx: Plugin.Context) =>
             }
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch("https://google.serper.dev/search", {
                   method: "POST",
                   headers: {
@@ -218,8 +230,14 @@ export const effect = (ctx: Plugin.Context) =>
                     ...(HL ? { hl: HL } : {}),
                     ...(TBS ? { tbs: TBS } : {}),
                   }),
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("Serper request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("Serper search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Serper request failed: " + String(error)),
             })
 
             if (!response.ok) {

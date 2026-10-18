@@ -111,8 +111,12 @@ type SearchResult = ReturnType<typeof toResult>
 //   METASO_INCLUDE_RAW_CONTENT  true returns the full source text of every hit: same
 //                               search cost, far more context tokens. Only worth it
 //                               when you would otherwise webfetch those hits anyway.
+//   METASO_TIMEOUT              ms to wait before failing (0 removes the deadline)
 //   METASO_API_KEY              required; from https://metaso.cn
 const CACHE_TTL = envInt("METASO_CACHE_TTL", 600_000)
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("METASO_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("METASO_SEARCH_SIZE", 20), 1), 100)
 const INCLUDE_RAW_CONTENT = envStr("METASO_INCLUDE_RAW_CONTENT") === "true"
 
@@ -136,6 +140,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -200,7 +212,7 @@ export const effect = (ctx: Plugin.Context) =>
             }
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch("https://metaso.cn/api/v1/search", {
                   method: "POST",
                   headers: {
@@ -216,8 +228,14 @@ export const effect = (ctx: Plugin.Context) =>
                     includeRawContent: INCLUDE_RAW_CONTENT,
                     conciseSnippet: true,
                   }),
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("Metaso request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("Metaso search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Metaso request failed: " + String(error)),
             })
 
             if (!response.ok) {

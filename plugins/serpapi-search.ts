@@ -111,11 +111,15 @@ type SearchResult = ReturnType<typeof toResult>
 //   SERPAPI_GL         country code for results, e.g. "us", "cn"
 //   SERPAPI_HL         language code for results, e.g. "en", "zh-cn"
 //   SERPAPI_TBS        advanced filters, e.g. "qdr:d" (past day), "qdr:y"
+//   SERPAPI_TIMEOUT    ms to wait before failing (0 removes the deadline)
 //   SERPAPI_API_KEY    required; from https://serpapi.com
 //
 // There is deliberately no result-count knob: Google withdrew the `num`
 // parameter, so SerpApi cannot honour one and a count would be a lie.
 const CACHE_TTL = envInt("SERPAPI_CACHE_TTL", 600_000)
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("SERPAPI_TIMEOUT", 25_000)
 const GL = envStr("SERPAPI_GL")
 const HL = envStr("SERPAPI_HL")
 const TBS = envStr("SERPAPI_TBS")
@@ -140,6 +144,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -212,13 +224,19 @@ export const effect = (ctx: Plugin.Context) =>
             if (TBS) url.searchParams.set("tbs", TBS)
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch(url, {
                   headers: {
                     Accept: "application/json",
                   },
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("SerpApi request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("SerpApi search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("SerpApi request failed: " + String(error)),
             })
 
             if (!response.ok) {

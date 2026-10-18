@@ -77,6 +77,10 @@ function envStr(name: string): string {
 //   JINA_GL              country code for results, e.g. "us", "cn"
 //   JINA_HL              language code for results, e.g. "en", "zh-cn"
 //   JINA_LOCATION        city-level origin to simulate, e.g. "Berlin"
+//   JINA_TIMEOUT         ms to wait before failing (0 removes the deadline).
+//                        Defaults to 25000, or 60000 when JINA_INCLUDE_CONTENT
+//                        is on, because whole-page fetches legitimately take
+//                        far longer than a snippet search
 //   JINA_API_KEY         required; free key at https://jina.ai/?sui=apikey
 const CACHE_TTL = envInt("JINA_CACHE_TTL", 600_000)
 const INCLUDE_CONTENT = envStr("JINA_INCLUDE_CONTENT") === "true"
@@ -84,6 +88,13 @@ const SEARCH_SIZE = Math.min(Math.max(envInt("JINA_NUM", 0), 0), 100)
 const GL = envStr("JINA_GL")
 const HL = envStr("JINA_HL")
 const LOCATION = envStr("JINA_LOCATION")
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+// Jina is the one provider whose default has to vary: asking for page content
+// turns a snippet search into a crawl, and a shared budget would either cut
+// that off or be padded so high that a genuine hang takes a minute to surface.
+const DEFAULT_TIMEOUT = INCLUDE_CONTENT ? 60_000 : 25_000
+const SEARCH_TIMEOUT = envInt("JINA_TIMEOUT", DEFAULT_TIMEOUT)
 
 const CACHE_LIMIT = 200
 const cache = new Map<string, { at: number; results: SearchResult[] }>()
@@ -105,6 +116,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -169,7 +188,7 @@ export const effect = (ctx: Plugin.Context) =>
             }
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch("https://s.jina.ai/", {
                   method: "POST",
                   headers: {
@@ -188,8 +207,14 @@ export const effect = (ctx: Plugin.Context) =>
                     ...(HL ? { hl: HL } : {}),
                     ...(LOCATION ? { location: LOCATION } : {}),
                   }),
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("Jina request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("Jina search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Jina request failed: " + String(error)),
             })
 
             if (!response.ok) {

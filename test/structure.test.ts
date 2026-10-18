@@ -67,11 +67,43 @@ const DATE_BLOCK = `function parseSearchDate(value: string | undefined): number 
 const SOFTEN_BLOCK = `const soften = <A>(read: Effect.Effect<A, unknown>): Effect.Effect<A | undefined, never> =>
       read.pipe(Effect.catch(() => Effect.succeed(undefined)))`
 
+const TIMED_SIGNAL_BLOCK = `// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. \`timeout <= 0\`
+// removes the deadline but never the cancellation, because
+// \`AbortSignal.timeout(0)\` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
+}`
+
 /** Files that carry a date field and must therefore share the date parser. */
 const WITH_DATES = [
   "brave-search",
   "deepseek-search",
   "keenable-search",
+  "metaso-search",
+  "querit-search",
+  "serpapi-search",
+  "serper-search",
+  "youcom-search",
+]
+
+/**
+ * Files that bound their own HTTP request. The host applies no deadline around
+ * a provider's `execute`, so a provider that omits this can hang the agent for
+ * as long as the upstream stays silent.
+ *
+ * Every file that fetches belongs here. Each reads the budget from its own
+ * `*_TIMEOUT` variable and falls back to 25s, matching the built-in providers.
+ * `jina-search` is the exception: its default depends on `JINA_INCLUDE_CONTENT`,
+ * because whole-page fetches legitimately take far longer than a snippet search.
+ */
+const WITH_TIMEOUT = [
+  "anysearch-search",
+  "brave-search",
+  "deepseek-search",
+  "jina-search",
+  "keenable-search",
+  "linkup-search",
   "metaso-search",
   "querit-search",
   "serpapi-search",
@@ -130,6 +162,14 @@ describe("repository structure", () => {
     for (const file of WITH_DATES) {
       const source = providerSource(file)
       expect(source, `${file} date parser`).toContain(DATE_BLOCK)
+    }
+
+    for (const file of WITH_TIMEOUT) {
+      const source = providerSource(file)
+      expect(source, `${file} request deadline`).toContain(TIMED_SIGNAL_BLOCK)
+      // The deadline must actually be applied, not merely defined.
+      expect(source, `${file} applies the deadline`).toContain("signal: timedSignal(signal, ")
+      expect(source, `${file} names its timeout`).toContain('_TIMEOUT", ')
     }
 
     // Files without a date field must not carry a parser they never call.

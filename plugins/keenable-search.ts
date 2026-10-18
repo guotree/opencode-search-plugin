@@ -122,8 +122,12 @@ function envStr(name: string): string {
 //                         leave unset and the organization's default applies
 //   KEENABLE_TITLE        app name sent as X-Keenable-Title, which the keyless
 //                         endpoint requires to attribute traffic (max 256 chars)
+//   KEENABLE_TIMEOUT      ms to wait before failing (0 removes the deadline)
 //   KEENABLE_API_KEY      optional; keyless access works without it
 const CACHE_TTL = envInt("KEENABLE_CACHE_TTL", 600_000)
+// OpenCode's own providers each bounded themselves at 25s, and the host adds
+// no deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("KEENABLE_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("KEENABLE_MAX_RESULTS", 10), 1), 50)
 const MODE = envStr("KEENABLE_MODE")
 const TITLE = (envStr("KEENABLE_TITLE") || "opencode-search-plugin").slice(0, 256)
@@ -151,6 +155,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 // Unlike the key-requiring providers in this repo, Keenable never gates on
@@ -213,7 +225,7 @@ export const effect = (ctx: Plugin.Context) =>
             if (key) headers["X-API-Key"] = key
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch(key ? SEARCH_URL : PUBLIC_URL, {
                   method: "POST",
                   headers,
@@ -222,8 +234,14 @@ export const effect = (ctx: Plugin.Context) =>
                     max_results: SEARCH_SIZE,
                     ...(MODE ? { mode: MODE } : {}),
                   }),
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("Keenable request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("Keenable search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Keenable request failed: " + String(error)),
             })
 
             if (!response.ok) {

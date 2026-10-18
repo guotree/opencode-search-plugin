@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { Plugin } from "@opencode/plugin/effect"
 import type { Effect, Scope } from "effect"
@@ -101,6 +102,40 @@ describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
     stubFetch(() => new Response("nope", { status: 500 }))
     await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
       /API error 500/,
+    )
+  })
+
+  it("bounds a hung upstream and names the timeout in the failure", async () => {
+    // OpenCode applies no deadline around `execute`, so without one a stalled
+    // upstream hangs the agent indefinitely. Providers that have landed the
+    // shared `timedSignal` block are covered here; the rest start failing this
+    // assertion as soon as they adopt it.
+    const source = readFileSync(new URL(`../plugins/${spec.file}.ts`, import.meta.url), "utf8")
+    if (!source.includes("timedSignal")) return
+
+    // Read the deadline's own variable name out of the plugin, rather than
+    // deriving it: Brave is `BRAVE_TIMEOUT`, not `BRAVE_SEARCH_TIMEOUT`.
+    const knob = /envInt\("([A-Z_]+_TIMEOUT)"/.exec(source)?.[1]
+    if (!knob) throw new Error(`${spec.file} reads no *_TIMEOUT variable`)
+
+    // The deadline is read once at load time, so the budget has to be set
+    // there. 250ms keeps the suite fast and still proves the bound fires.
+    const mod = await loadPlugin<ProviderModule>(modulePath, { ...noKeyEnv, [knob]: "250" })
+    const harness = makeHarness({ credentialSequence: [CREDENTIAL] })
+    await harness.run(mod.effect(harness.ctx))
+
+    // Accepts the request and never answers, which is what a stalled upstream
+    // looks like. A real AbortSignal is handed over so the deadline can fire.
+    stubFetch(
+      (call) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = call.init?.signal
+          if (signal) signal.addEventListener("abort", () => reject(signal.reason))
+        }) as unknown as Response,
+    )
+
+    await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
+      /timed out after \d+ms/,
     )
   })
 

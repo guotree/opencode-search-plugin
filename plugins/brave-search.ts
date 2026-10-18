@@ -114,12 +114,17 @@ type SearchResult = ReturnType<typeof toResult>
 //   BRAVE_LANG            result language code, e.g. "en", "zh-hans", "pt-br"
 //   BRAVE_FRESHNESS       "pd" (24h) "pw" (7d) "pm" (31d) "py" (365d) or a
 //                         "YYYY-MM-DDtoYYYY-MM-DD" range
+//   BRAVE_TIMEOUT         ms to wait for Brave before failing (0 removes the
+//                         deadline; cancellation still applies)
 //   BRAVE_SEARCH_API_KEY  required; from https://brave.com/search/api/
 const CACHE_TTL = envInt("BRAVE_CACHE_TTL", 600_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("BRAVE_NUM", 8), 1), 20)
 const COUNTRY = envStr("BRAVE_COUNTRY")
 const SEARCH_LANG = envStr("BRAVE_LANG")
 const FRESHNESS = envStr("BRAVE_FRESHNESS")
+// OpenCode's own providers each bound themselves at 25s, and the host adds no
+// deadline of its own around `execute`, so this is the only one that exists.
+const SEARCH_TIMEOUT = envInt("BRAVE_TIMEOUT", 25_000)
 
 const CACHE_LIMIT = 200
 const cache = new Map<string, { at: number; results: SearchResult[] }>()
@@ -141,6 +146,14 @@ function writeCache(queryKey: string, results: SearchResult[]): void {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)
   }
+}
+
+// A hung upstream must not hang the agent: the deadline bounds it, and the
+// thunk's signal carries host cancellation into the socket. `timeout <= 0`
+// removes the deadline but never the cancellation, because
+// `AbortSignal.timeout(0)` aborts instantly rather than "never".
+function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
+  return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -212,14 +225,20 @@ export const effect = (ctx: Plugin.Context) =>
             if (FRESHNESS) url.searchParams.set("freshness", FRESHNESS)
 
             const response = yield* Effect.tryPromise({
-              try: () =>
+              try: (signal) =>
                 fetch(url, {
                   headers: {
                     Accept: "application/json",
                     "X-Subscription-Token": key,
                   },
+                  signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
-              catch: (error) => new Error("Brave request failed: " + String(error)),
+              // A timeout is its own failure: naming it stops the user hunting
+              // for a key problem that was never there.
+              catch: (error) =>
+                error instanceof Error && error.name === "TimeoutError"
+                  ? new Error("Brave search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Brave request failed: " + String(error)),
             })
 
             if (!response.ok) {
