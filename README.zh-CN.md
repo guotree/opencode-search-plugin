@@ -178,7 +178,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `OSP_ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
 | Bocha | `osp-bocha` | `OSP_BOCHA_API_KEY` | 否 | 结果格式兼容 Bing；按搜索次数计费，要求摘要时另按 token 计费 |
-| Brave Search | `osp-brave` | `OSP_BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
+| Brave Search | `osp-brave` | `OSP_BRAVE_API_KEY` | 否 | 独立索引，最多 20 条结果 |
 | DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
 | Jina | `osp-jina` | `OSP_JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |

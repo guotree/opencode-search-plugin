@@ -87,7 +87,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "brave-search",
     providerID: "osp-brave",
     displayName: "Brave Search",
-    envKey: "OSP_BRAVE_SEARCH_API_KEY",
+    envKey: "OSP_BRAVE_API_KEY",
     response: {
       web: {
         results: [

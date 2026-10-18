@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Brave now reads its key from `OSP_BRAVE_API_KEY`, not
+  `OSP_BRAVE_SEARCH_API_KEY` -- the only one of the thirteen that broke the
+  `OSP_<PROVIDER>_API_KEY` shape. 3.0.0 shipped the longer name earlier the
+  same day, before it had any users to strand.
+
 ## [3.0.0] - 2026-10-19
 
 ### Added

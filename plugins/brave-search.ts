@@ -116,7 +116,7 @@ type SearchResult = ReturnType<typeof toResult>
 //                         "YYYY-MM-DDtoYYYY-MM-DD" range
 //   BRAVE_TIMEOUT         ms to wait for Brave before failing (0 removes the
 //                         deadline; cancellation still applies)
-//   OSP_BRAVE_SEARCH_API_KEY  required; from https://brave.com/search/api/
+//   OSP_BRAVE_API_KEY      required; from https://brave.com/search/api/
 const CACHE_TTL = envInt("BRAVE_CACHE_TTL", 600_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("BRAVE_NUM", 8), 1), 20)
 const COUNTRY = envStr("BRAVE_COUNTRY")
@@ -169,7 +169,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["OSP_BRAVE_SEARCH_API_KEY"] },
+        method: { type: "env", names: ["OSP_BRAVE_API_KEY"] },
       })
     })
 
@@ -189,7 +189,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.OSP_BRAVE_SEARCH_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_BRAVE_API_KEY
       })
 
     // Brave is bound to websearch only while a key exists. Deleting the key
@@ -213,7 +213,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Brave in /connect, or set OSP_BRAVE_SEARCH_API_KEY"),
+                new Error("Connect Brave in /connect, or set OSP_BRAVE_API_KEY"),
               )
             }
 

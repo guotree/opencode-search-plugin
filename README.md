@@ -178,7 +178,7 @@ The namespace also shows on the display name: `/connect` lists each of this pack
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `OSP_ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
 | Bocha | `osp-bocha` | `OSP_BOCHA_API_KEY` | no | Bing-compatible results; billed per search, and by the token when a summary is asked for |
-| Brave Search | `osp-brave` | `OSP_BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
+| Brave Search | `osp-brave` | `OSP_BRAVE_API_KEY` | no | Independent index, 20 results max |
 | DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | no | In-house index; $0.75 per 1,000 successful requests; 5 QPS cap |
 | Jina | `osp-jina` | `OSP_JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
