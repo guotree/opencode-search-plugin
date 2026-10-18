@@ -1,6 +1,6 @@
 {
   "name": "opencode-search-plugin",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Thirteen self-contained websearch provider plugins for OpenCode v2: AnySearch, Bocha, Brave, DeepSeek, Jina, Keenable, Linkup, Metaso, Ollama, Querit, SerpApi, Serper and You.com.",
   "type": "module",
   "license": "MIT",

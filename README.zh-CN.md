@@ -31,12 +31,12 @@ OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parall
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@3.0.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十三个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@3.1.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十三个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
 ```sh
-# 追加 @3.0.0 可固定到该版本
+# 追加 @3.1.0 可固定到该版本
 opencode plugin add opencode-search-plugin
 ```
 
@@ -52,7 +52,7 @@ opencode plugin add opencode-search-plugin
 ### 2. 从 GitHub 安装
 
 ```sh
-# 追加 #v3.0.0 可固定到该 tag
+# 追加 #v3.1.0 可固定到该 tag
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -134,7 +134,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式，用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的会停在原地（npm 形式是 `@3.0.0`，GitHub 形式是 `#v3.0.0`），直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件用新版本覆盖旧文件即可。
+升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式，用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的会停在原地（npm 形式是 `@3.1.0`，GitHub 形式是 `#v3.1.0`），直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件用新版本覆盖旧文件即可。
 
 ## 卸载
 

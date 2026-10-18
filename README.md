@@ -31,12 +31,12 @@ This repository adds plugins for thirteen more of them, taking the pool from fiv
 
 ## Install
 
-Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@3.0.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all thirteen); use the third for one or two files only.
+Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@3.1.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all thirteen); use the third for one or two files only.
 
 ### 1. From npm (recommended)
 
 ```sh
-# add @3.0.0 to pin
+# add @3.1.0 to pin
 opencode plugin add opencode-search-plugin
 ```
 
@@ -52,7 +52,7 @@ or declare it in `opencode.json(c)`:
 ### 2. From GitHub
 
 ```sh
-# add #v3.0.0 to pin
+# add #v3.1.0 to pin
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -134,7 +134,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form; naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one (`@3.0.0` on npm, `#v3.0.0` on GitHub) stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
+The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form; naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one (`@3.1.0` on npm, `#v3.1.0` on GitHub) stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
 
 ## Uninstall
 
