@@ -9,7 +9,7 @@ interface Module {
   effect: (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 }
 
-const NO_KEY: Record<string, string> = { JINA_API_KEY: "" }
+const NO_KEY: Record<string, string> = { OSP_JINA_API_KEY: "" }
 const CREDENTIAL = { type: "key", key: "k" } as const
 
 afterEach(() => {

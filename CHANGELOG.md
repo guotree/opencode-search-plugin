@@ -10,7 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Bocha** (`plugins/bocha-search.ts`), the twelfth provider, on the
   Bing-compatible Web Search API at `api.bocha.cn` (`osp-bocha`,
-  `BOCHA_API_KEY`). The snippet is the default content and `summary` is left
+  `OSP_BOCHA_API_KEY`). The snippet is the default content and `summary` is left
   off, which matches the API's own default: a generated summary costs more
   per call than the search that produced it, and `BOCHA_SUMMARY=true` is the
   switch for when the extra context earns that. `BOCHA_FRESHNESS` is omitted
@@ -25,10 +25,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the 401 refusal body were all checked against the live API.
 - **Ollama** (`plugins/ollama-search.ts`), the thirteenth provider, on the
   hosted Web Search API at `ollama.com/api/web_search` (`osp-ollama`,
-  `OLLAMA_API_KEY`). The key name is the vendor-canonical one that Ollama's
-  own SDKs read, so a single account key serves both, and a /connect
-  credential outranks the environment for when it holds something else (a
-  bearer token for an Ollama-compatible proxy, say). The response is the
+  `OSP_OLLAMA_API_KEY`). The account key comes from ollama.com/settings/keys,
+  and the namespaced variable keeps it clear of the vendor-canonical
+  `OLLAMA_API_KEY`, which other tools -- and OpenCode's own config examples --
+  also read, sometimes as a bearer token for an Ollama-compatible proxy
+  rather than an account key. The response is the
   flattest in this package -- `results` of `{title, url, content}`, no
   wrapper and no dates -- so the file carries no date parser at all, and
   `content` turns out to be the whole page as markdown rather than a
@@ -36,6 +37,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   of 5, clamped to its 1-10) the knob that matters for context. Envelope,
   `max_results` and the 401 body (`{"error":"Unauthorized"}`) were checked
   against the live API.
+
+### Changed
+
+- **Breaking: every provider key variable is namespaced.**
+  `<PROVIDER>_API_KEY` became `OSP_<PROVIDER>_API_KEY`, so a key this plugin
+  reads can no longer collide with the same vendor name exported for another
+  tool. The variables no longer read are `ANYSEARCH_API_KEY`, `BOCHA_API_KEY`,
+  `BRAVE_SEARCH_API_KEY`, `DEEPSEEK_API_KEY`, `JINA_API_KEY`,
+  `KEENABLE_API_KEY`, `LINKUP_API_KEY`, `METASO_API_KEY`, `OLLAMA_API_KEY`,
+  `QUERIT_API_KEY`, `SERPAPI_API_KEY`, `SERPER_API_KEY` and `YDC_API_KEY`;
+  each now carries the `OSP_` prefix. Credentials stored in `/connect` are
+  unaffected and still outrank the environment. The tuning knobs
+  (`<PROVIDER>_CACHE_TTL`, `<PROVIDER>_TIMEOUT` and friends) keep their
+  names -- no other tool reads those.
 
 ### Fixed
 

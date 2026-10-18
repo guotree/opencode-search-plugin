@@ -3,7 +3,7 @@ import { jsonResponse, loadPlugin, makeHarness, stubFetch } from "./harness"
 
 type Bocha = typeof import("../plugins/bocha-search")
 
-const NO_KEY: Record<string, string> = { BOCHA_API_KEY: "" }
+const NO_KEY: Record<string, string> = { OSP_BOCHA_API_KEY: "" }
 
 /** Bound with a stored credential, env applied on top of `NO_KEY`. */
 async function bind(env: Record<string, string> = {}) {

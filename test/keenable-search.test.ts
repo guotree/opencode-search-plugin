@@ -3,7 +3,7 @@ import { jsonResponse, loadPlugin, makeHarness, stubFetch } from "./harness"
 
 type Keenable = typeof import("../plugins/keenable-search")
 
-const NO_KEY: Record<string, string> = { KEENABLE_API_KEY: "" }
+const NO_KEY: Record<string, string> = { OSP_KEENABLE_API_KEY: "" }
 
 async function bind(env: Record<string, string> = NO_KEY, storedKey?: string) {
   const mod = await loadPlugin<Keenable>("../plugins/keenable-search", env)
@@ -25,7 +25,7 @@ describe("keenable-search", () => {
     expect(harness.providers.map((p) => p.id)).toEqual(["osp-keenable"])
     expect(harness.integrationNames.get("osp-keenable")).toBe("Keenable (osp)")
     expect(harness.envMethods).toEqual([
-      { integrationID: "osp-keenable", names: ["KEENABLE_API_KEY"] },
+      { integrationID: "osp-keenable", names: ["OSP_KEENABLE_API_KEY"] },
     ])
     expect(mod.default.id).toBe("keenable-search")
 
@@ -55,7 +55,7 @@ describe("keenable-search", () => {
 
   it("normalizes the query, sends the knobs, and maps results", async () => {
     const { harness } = await bind({
-      KEENABLE_API_KEY: "",
+      OSP_KEENABLE_API_KEY: "",
       KEENABLE_MAX_RESULTS: "500",
       KEENABLE_MODE: "realtime",
       KEENABLE_TITLE: "my-agent",

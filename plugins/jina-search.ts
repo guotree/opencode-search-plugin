@@ -81,7 +81,7 @@ function envStr(name: string): string {
 //                        Defaults to 25000, or 60000 when JINA_INCLUDE_CONTENT
 //                        is on, because whole-page fetches legitimately take
 //                        far longer than a snippet search
-//   JINA_API_KEY         required; free key at https://jina.ai/?sui=apikey
+//   OSP_JINA_API_KEY         required; free key at https://jina.ai/?sui=apikey
 const CACHE_TTL = envInt("JINA_CACHE_TTL", 600_000)
 const INCLUDE_CONTENT = envStr("JINA_INCLUDE_CONTENT") === "true"
 const SEARCH_SIZE = Math.min(Math.max(envInt("JINA_NUM", 0), 0), 100)
@@ -139,7 +139,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["JINA_API_KEY"] },
+        method: { type: "env", names: ["OSP_JINA_API_KEY"] },
       })
     })
 
@@ -159,7 +159,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.JINA_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_JINA_API_KEY
       })
 
     // Jina is bound to websearch only while a key exists. Deleting the key
@@ -183,7 +183,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Jina in /connect, or set JINA_API_KEY"),
+                new Error("Connect Jina in /connect, or set OSP_JINA_API_KEY"),
               )
             }
 

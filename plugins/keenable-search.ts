@@ -123,7 +123,7 @@ function envStr(name: string): string {
 //   KEENABLE_TITLE        app name sent as X-Keenable-Title, which the keyless
 //                         endpoint requires to attribute traffic (max 256 chars)
 //   KEENABLE_TIMEOUT      ms to wait before failing (0 removes the deadline)
-//   KEENABLE_API_KEY      optional; keyless access works without it
+//   OSP_KEENABLE_API_KEY      optional; keyless access works without it
 const CACHE_TTL = envInt("KEENABLE_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -183,7 +183,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["KEENABLE_API_KEY"] },
+        method: { type: "env", names: ["OSP_KEENABLE_API_KEY"] },
       })
     })
 
@@ -212,7 +212,7 @@ export const effect = (ctx: Plugin.Context) =>
               ? yield* soften(ctx.integration.connection.resolve(connection))
               : undefined
             const key =
-              credential?.type === "key" ? credential.key : process.env.KEENABLE_API_KEY
+              credential?.type === "key" ? credential.key : process.env.OSP_KEENABLE_API_KEY
 
             const headers: Record<string, string> = {
               Accept: "application/json",
@@ -253,7 +253,7 @@ export const effect = (ctx: Plugin.Context) =>
                   new Error(
                     "Keenable credits exhausted (HTTP 402): the free monthly " +
                       "allowance of 100,000 requests is spent. Connect Keenable " +
-                      "in /connect or set KEENABLE_API_KEY to buy credits, or " +
+                      "in /connect or set OSP_KEENABLE_API_KEY to buy credits, or " +
                       "wait for the allowance to reset.",
                   ),
                 )
@@ -267,7 +267,7 @@ export const effect = (ctx: Plugin.Context) =>
                       (key
                         ? ""
                         : ". The keyless pool allows 1,000 requests an hour and " +
-                          "10 a second per IP; set KEENABLE_API_KEY to spend your " +
+                          "10 a second per IP; set OSP_KEENABLE_API_KEY to spend your " +
                           "own 100,000-request monthly allowance instead."),
                   ),
                 )

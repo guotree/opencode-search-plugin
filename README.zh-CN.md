@@ -154,6 +154,8 @@ opencode plugin remove github:guotree/opencode-search-plugin
 - **OpenCode 内的 `/connect`**：按 provider 存储，轮换后无需重启，也不受环境变量变动影响。
 - **环境变量**：作为兜底读取，无界面和 CI 场景下也能工作。
 
+环境变量带命名空间前缀，形如 `OSP_<PROVIDER>_API_KEY`（例如 `OSP_BRAVE_API_KEY`），因此本插件读的 key 不会和其他工具导出的同厂商变量名撞车。存在 `/connect` 里的凭据无论如何都优先于环境变量。
+
 没有 key 的 provider 会保持未绑定状态：它不在 websearch 池中，所以 `"provider": "random"` 绝不会把查询路由到一个注定失败的服务上。
 
 AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册，只有存在 key 时才附带各自的凭据头。Keenable 的两层额度互不通用：有 key 时消耗每月 100,000 次的免费额度，无 key 的请求则改走 `/public` 端点，按速率限制：每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的所有人共用。想摆脱这个共享池的不确定性，就得配一把 key。
@@ -174,19 +176,19 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
-| AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
-| Bocha | `osp-bocha` | `BOCHA_API_KEY` | 否 | 结果格式兼容 Bing；按搜索次数计费，要求摘要时另按 token 计费 |
-| Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
-| DeepSeek | `osp-deepseek` | `DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
-| Jina | `osp-jina` | `JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
-| Keenable | `osp-keenable` | `KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
-| Linkup | `osp-linkup` | `LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
-| Metaso | `osp-metaso` | `METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
-| Ollama | `osp-ollama` | `OLLAMA_API_KEY` | 否 | 个人档免费；每条 content 是整页 markdown，上下文偏重；上限 10 条，且不带日期 |
-| Querit | `osp-querit` | `QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
-| SerpApi | `osp-serpapi` | `SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；另有其自带的免费 1 小时服务端缓存 |
-| Serper | `osp-serper` | `SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
-| You.com | `osp-youcom` | `YDC_API_KEY` | 否 | 网页与新闻结果合并；多种正文抽取模式 |
+| AnySearch | `osp-anysearch` | `OSP_ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
+| Bocha | `osp-bocha` | `OSP_BOCHA_API_KEY` | 否 | 结果格式兼容 Bing；按搜索次数计费，要求摘要时另按 token 计费 |
+| Brave Search | `osp-brave` | `OSP_BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
+| DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
+| Jina | `osp-jina` | `OSP_JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
+| Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
+| Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
+| Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
+| Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | 否 | 个人档免费；每条 content 是整页 markdown，上下文偏重；上限 10 条，且不带日期 |
+| Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
+| SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；另有其自带的免费 1 小时服务端缓存 |
+| Serper | `osp-serper` | `OSP_SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
+| You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 否 | 网页与新闻结果合并；多种正文抽取模式 |
 
 ## 配置
 
@@ -208,7 +210,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `ANYSEARCH_ZONE` | — | `cn` 或 `intl` |
 | `ANYSEARCH_LANGUAGE` | — | 首选结果语言，例如 `zh-CN` |
 | `ANYSEARCH_FORMAT` | `markdown` | content 字段用 `markdown` 还是 `json` |
-| `ANYSEARCH_API_KEY` | — | 可选；不设也能匿名使用 |
+| `OSP_ANYSEARCH_API_KEY` | — | 可选；不设也能匿名使用 |
 
 ### Bocha
 
@@ -250,7 +252,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `KEENABLE_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–50 |
 | `KEENABLE_MODE` | — | `pro`（更深的检索）或 `realtime`（最快）；不设则沿用 Keenable 自己的默认值 |
 | `KEENABLE_TITLE` | `opencode-search-plugin` | 作为 `X-Keenable-Title` 发出的应用名，无 key 端点靠它归属调用方 |
-| `KEENABLE_API_KEY` | — | 可选；不设也能匿名使用 |
+| `OSP_KEENABLE_API_KEY` | — | 可选；不设也能匿名使用 |
 
 ### Linkup
 
@@ -329,11 +331,11 @@ opencode api get "/api/websearch/provider"
 另外几个值得检查的地方：
 
 - 某家 provider 不在池里：它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
-- 搜索报错 `Keenable rate limited the request (HTTP 429)`：无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
-- 搜索报错 `Ollama API error 401`：`OLLAMA_API_KEY` 必须是 [ollama.com/settings/keys](https://ollama.com/settings/keys) 的账号 key。如果它存的是某个 Ollama 兼容代理的 token（OpenCode 官方文档里就有这种配置形状），到 `/connect` 给 **Ollama Search (osp)** 存一把真 key——/connect 凭据优先于环境变量。
+- 搜索报错 `Keenable rate limited the request (HTTP 429)`：无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `OSP_KEENABLE_API_KEY` 就会记到你自己的额度上。
+- 搜索报错 `Ollama API error 401`：`OSP_OLLAMA_API_KEY` 必须是 [ollama.com/settings/keys](https://ollama.com/settings/keys) 的账号 key。如果它存的是某个 Ollama 兼容代理的 token（OpenCode 官方文档里就有这种配置形状），到 `/connect` 给 **Ollama Search (osp)** 存一把真 key——/connect 凭据优先于环境变量。
 - 搜索报错 `Bocha balance is exhausted (HTTP 403)`：账户余额用尽；到 [open.bocha.cn](https://open.bocha.cn) 充值。报错会带上博查自己的 `message` 文本和一个 `log_id`，联系他们客服时请附上。
 - 搜索报错 `Bocha rate limited the request (HTTP 429)`：单账户的请求上限与总充值金额挂钩，余额少则天花板低。博查返回了 `Retry-After` 时，报错里会带上 `retry after Ns` 提示。
-- 搜索报错 `Connect X in /connect, or set X_API_KEY`：key 在绑定和搜索之间消失了。重新连接或重新导出。
+- 搜索报错 `Connect X in /connect, or set OSP_X_API_KEY`：key 在绑定和搜索之间消失了。重新连接或重新导出。
 - 搜索报错 `X search timed out after 25000ms`：provider 接受了请求，但在期限内没有返回。重试通常就好；如果某家 provider 在你这边一贯偏慢，调大它的 `<PROVIDER>_TIMEOUT`。这道期限是刻意加的：没有它，一个卡住的 provider 会挂住整轮对话，因为 OpenCode 自身并不给搜索设置任何超时。
 - 一切都很慢，或者积分烧得飞快：把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。
 - 改了插件文件却没反应：OpenCode 会监视插件并自动重载；如果没有，执行 `opencode service restart`。

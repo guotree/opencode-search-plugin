@@ -3,7 +3,7 @@ import { jsonResponse, loadPlugin, makeHarness, stubFetch } from "./harness"
 
 type Ollama = typeof import("../plugins/ollama-search")
 
-const NO_KEY: Record<string, string> = { OLLAMA_API_KEY: "" }
+const NO_KEY: Record<string, string> = { OSP_OLLAMA_API_KEY: "" }
 
 interface HitResult {
   url: string

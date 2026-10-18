@@ -55,7 +55,7 @@ function envStr(name: string): string {
 //                        (single agentic pass) or "deep" (several iterations)
 //   LINKUP_MAX_RESULTS   results per search, clamped to 1-100
 //   LINKUP_TIMEOUT       ms to wait before failing (0 removes the deadline)
-//   LINKUP_API_KEY       required; from https://app.linkup.so
+//   OSP_LINKUP_API_KEY       required; from https://app.linkup.so
 const CACHE_TTL = envInt("LINKUP_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -108,7 +108,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["LINKUP_API_KEY"] },
+        method: { type: "env", names: ["OSP_LINKUP_API_KEY"] },
       })
     })
 
@@ -128,7 +128,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.LINKUP_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_LINKUP_API_KEY
       })
 
     // Linkup is bound to websearch only while a key exists. Deleting the key
@@ -152,7 +152,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Linkup in /connect, or set LINKUP_API_KEY"),
+                new Error("Connect Linkup in /connect, or set OSP_LINKUP_API_KEY"),
               )
             }
 

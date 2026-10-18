@@ -112,7 +112,7 @@ type SearchResult = ReturnType<typeof toResult>
 //   SERPAPI_HL         language code for results, e.g. "en", "zh-cn"
 //   SERPAPI_TBS        advanced filters, e.g. "qdr:d" (past day), "qdr:y"
 //   SERPAPI_TIMEOUT    ms to wait before failing (0 removes the deadline)
-//   SERPAPI_API_KEY    required; from https://serpapi.com
+//   OSP_SERPAPI_API_KEY    required; from https://serpapi.com
 //
 // There is deliberately no result-count knob: Google withdrew the `num`
 // parameter, so SerpApi cannot honour one and a count would be a lie.
@@ -167,7 +167,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["SERPAPI_API_KEY"] },
+        method: { type: "env", names: ["OSP_SERPAPI_API_KEY"] },
       })
     })
 
@@ -187,7 +187,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.SERPAPI_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_SERPAPI_API_KEY
       })
 
     // SerpApi is bound to websearch only while a key exists. Deleting the key
@@ -211,7 +211,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect SerpApi in /connect, or set SERPAPI_API_KEY"),
+                new Error("Connect SerpApi in /connect, or set OSP_SERPAPI_API_KEY"),
               )
             }
 

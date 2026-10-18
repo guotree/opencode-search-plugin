@@ -3,7 +3,7 @@ import { loadPlugin, makeHarness } from "./harness"
 
 type Brave = typeof import("../plugins/brave-search")
 
-const NO_KEY: Record<string, string> = { BRAVE_SEARCH_API_KEY: "" }
+const NO_KEY: Record<string, string> = { OSP_BRAVE_SEARCH_API_KEY: "" }
 
 interface RecordedCall {
   url: URL
@@ -63,14 +63,14 @@ describe("brave-search", () => {
     expect(harness.providers.map((p) => p.id)).toEqual(["osp-brave"])
     expect(harness.integrationNames.get("osp-brave")).toBe("Brave Search (osp)")
     expect(harness.envMethods).toEqual([
-      { integrationID: "osp-brave", names: ["BRAVE_SEARCH_API_KEY"] },
+      { integrationID: "osp-brave", names: ["OSP_BRAVE_SEARCH_API_KEY"] },
     ])
     expect(mod.default.id).toBe("brave-search")
   })
 
   it("takes the key from the environment when no credential is stored", async () => {
     const mod = await loadPlugin<Brave>("../plugins/brave-search", {
-      BRAVE_SEARCH_API_KEY: "env-key",
+      OSP_BRAVE_SEARCH_API_KEY: "env-key",
     })
     const harness = makeHarness()
     await harness.run(mod.effect(harness.ctx))
@@ -85,7 +85,7 @@ describe("brave-search", () => {
 
   it("normalizes the query, sends the knobs, and maps results", async () => {
     const { harness } = await bind({
-      BRAVE_SEARCH_API_KEY: "",
+      OSP_BRAVE_SEARCH_API_KEY: "",
       BRAVE_NUM: "12",
       BRAVE_COUNTRY: "cn",
       BRAVE_LANG: "zh-hans",
@@ -135,7 +135,7 @@ describe("brave-search", () => {
   })
 
   it("clamps BRAVE_NUM to Brave's documented maximum of 20", async () => {
-    const { harness } = await bind({ BRAVE_SEARCH_API_KEY: "", BRAVE_NUM: "500" })
+    const { harness } = await bind({ OSP_BRAVE_SEARCH_API_KEY: "", BRAVE_NUM: "500" })
     const fetch = stubFetch(() => jsonResponse({ web: { results: [] } }))
     await harness.run(harness.providers[0]!.execute({ query: "q" }))
     expect(fetch.calls[0]!.url.searchParams.get("count")).toBe("20")
@@ -154,7 +154,7 @@ describe("brave-search", () => {
   })
 
   it("names the timeout when Brave never answers", async () => {
-    const { harness } = await bind({ BRAVE_SEARCH_API_KEY: "", BRAVE_TIMEOUT: "250" })
+    const { harness } = await bind({ OSP_BRAVE_SEARCH_API_KEY: "", BRAVE_TIMEOUT: "250" })
     // Accepts the request, then goes silent -- a stalled upstream. The real
     // fetch would never return, so the deadline is the only thing that ends it.
     stubFetch(
@@ -172,7 +172,7 @@ describe("brave-search", () => {
   })
 
   it("sends the deadline signal only when BRAVE_TIMEOUT is above zero", async () => {
-    const { harness } = await bind({ BRAVE_SEARCH_API_KEY: "", BRAVE_TIMEOUT: "0" })
+    const { harness } = await bind({ OSP_BRAVE_SEARCH_API_KEY: "", BRAVE_TIMEOUT: "0" })
     const fetch = stubFetch(() => jsonResponse({ web: { results: [] } }))
     await harness.run(harness.providers[0]!.execute({ query: "q" }))
 

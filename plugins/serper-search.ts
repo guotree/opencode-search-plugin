@@ -113,7 +113,7 @@ type SearchResult = ReturnType<typeof toResult>
 //   SERPER_TBS         time filter: "qdr:h" (hour) "qdr:d" (day) "qdr:w" (week)
 //                      "qdr:m" (month) "qdr:y" (year)
 //   SERPER_TIMEOUT     ms to wait before failing (0 removes the deadline)
-//   SERPER_API_KEY     required; from https://serper.dev
+//   OSP_SERPER_API_KEY     required; from https://serper.dev
 const CACHE_TTL = envInt("SERPER_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -166,7 +166,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["SERPER_API_KEY"] },
+        method: { type: "env", names: ["OSP_SERPER_API_KEY"] },
       })
     })
 
@@ -186,7 +186,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.SERPER_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_SERPER_API_KEY
       })
 
     // Serper is bound to websearch only while a key exists. Deleting the key
@@ -210,7 +210,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Serper in /connect, or set SERPER_API_KEY"),
+                new Error("Connect Serper in /connect, or set OSP_SERPER_API_KEY"),
               )
             }
 

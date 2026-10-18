@@ -74,7 +74,7 @@ function envStr(name: string): string {
 //   ANYSEARCH_LANGUAGE      preferred result language, e.g. "zh-CN"
 //   ANYSEARCH_FORMAT        "markdown" (default) or "json" for the content field
 //   ANYSEARCH_TIMEOUT       ms to wait before failing (0 removes the deadline)
-//   ANYSEARCH_API_KEY       optional; anonymous access works without it
+//   OSP_ANYSEARCH_API_KEY       optional; anonymous access works without it
 const CACHE_TTL = envInt("ANYSEARCH_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -133,7 +133,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["ANYSEARCH_API_KEY"] },
+        method: { type: "env", names: ["OSP_ANYSEARCH_API_KEY"] },
       })
     })
 
@@ -162,7 +162,7 @@ export const effect = (ctx: Plugin.Context) =>
               ? yield* soften(ctx.integration.connection.resolve(connection))
               : undefined
             const key =
-              credential?.type === "key" ? credential.key : process.env.ANYSEARCH_API_KEY
+              credential?.type === "key" ? credential.key : process.env.OSP_ANYSEARCH_API_KEY
 
             const headers: Record<string, string> = {
               Accept: "application/json",
@@ -199,7 +199,7 @@ export const effect = (ctx: Plugin.Context) =>
               if (response.status === 402) {
                 return yield* Effect.fail(
                   new Error(
-                    "AnySearch quota exhausted (HTTP 402). Set ANYSEARCH_API_KEY " +
+                    "AnySearch quota exhausted (HTTP 402). Set OSP_ANYSEARCH_API_KEY " +
                       "or connect AnySearch in /connect to continue. The response " +
                       "body is withheld because it may contain credentials.",
                   ),

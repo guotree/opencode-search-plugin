@@ -113,7 +113,7 @@ type SearchResult = ReturnType<typeof toResult>
 //   DEEPSEEK_CACHE_TTL   ms to reuse a response for the same query (0 disables)
 //   DEEPSEEK_COUNT       results per search, clamped to 1-50
 //   DEEPSEEK_TIMEOUT     ms to wait before failing (0 removes the deadline)
-//   DEEPSEEK_API_KEY     required; from https://platform.deepseek.com
+//   OSP_DEEPSEEK_API_KEY     required; from https://platform.deepseek.com
 const CACHE_TTL = envInt("DEEPSEEK_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -163,7 +163,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["DEEPSEEK_API_KEY"] },
+        method: { type: "env", names: ["OSP_DEEPSEEK_API_KEY"] },
       })
     })
 
@@ -183,7 +183,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.DEEPSEEK_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_DEEPSEEK_API_KEY
       })
 
     // DeepSeek is bound to websearch only while a key exists. Deleting the key
@@ -207,7 +207,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect DeepSeek in /connect, or set DEEPSEEK_API_KEY"),
+                new Error("Connect DeepSeek in /connect, or set OSP_DEEPSEEK_API_KEY"),
               )
             }
 

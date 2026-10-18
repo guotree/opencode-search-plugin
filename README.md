@@ -154,6 +154,8 @@ Every provider except AnySearch and Keenable needs an API key. Give it one of tw
 - **`/connect`** inside OpenCode: stored per provider, rotated without a restart, survives environment changes.
 - **Environment variable**: read as a fallback, so it works in headless and CI contexts.
 
+Environment variables are namespaced `OSP_<PROVIDER>_API_KEY` (say `OSP_BRAVE_API_KEY`), so the key this plugin reads never collides with the same vendor name exported for another tool. A credential stored in `/connect` outranks the environment either way.
+
 A provider with no key stays unbound: it is absent from the websearch pool, so `"provider": "random"` can never route a query to a service that would immediately fail.
 
 AnySearch and Keenable are the exceptions. Both have an anonymous tier, so they are always registered and only attach their credential header when a key exists. For Keenable the two tiers draw on separate budgets: a key spends the free allowance of 100,000 requests a month, while a keyless call goes to the `/public` endpoint instead and is metered by rate: 1,000 requests an hour and 10 a second per IP, on a pool shared with everyone else on your egress address. A key is what makes that shared headroom irrelevant.
@@ -174,19 +176,19 @@ The namespace also shows on the display name: `/connect` lists each of this pack
 
 | Provider | ID | Key (env / `/connect`) | Anonymous | Notes |
 | --- | --- | --- | --- | --- |
-| AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
-| Bocha | `osp-bocha` | `BOCHA_API_KEY` | no | Bing-compatible results; billed per search, and by the token when a summary is asked for |
-| Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
-| DeepSeek | `osp-deepseek` | `DEEPSEEK_API_KEY` | no | In-house index; $0.75 per 1,000 successful requests; 5 QPS cap |
-| Jina | `osp-jina` | `JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
-| Keenable | `osp-keenable` | `KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
-| Linkup | `osp-linkup` | `LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
-| Metaso | `osp-metaso` | `METASO_API_KEY` | no | Billed per search, not per result |
-| Ollama | `osp-ollama` | `OLLAMA_API_KEY` | no | Free personal tier; each hit carries the full page as markdown, so results are context-heavy, capped at 10, and carry no dates |
-| Querit | `osp-querit` | `QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
-| SerpApi | `osp-serpapi` | `SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
-| Serper | `osp-serper` | `SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
-| You.com | `osp-youcom` | `YDC_API_KEY` | no | Web and news merged; extraction modes |
+| AnySearch | `osp-anysearch` | `OSP_ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
+| Bocha | `osp-bocha` | `OSP_BOCHA_API_KEY` | no | Bing-compatible results; billed per search, and by the token when a summary is asked for |
+| Brave Search | `osp-brave` | `OSP_BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
+| DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | no | In-house index; $0.75 per 1,000 successful requests; 5 QPS cap |
+| Jina | `osp-jina` | `OSP_JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
+| Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
+| Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
+| Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | no | Billed per search, not per result |
+| Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | no | Free personal tier; each hit carries the full page as markdown, so results are context-heavy, capped at 10, and carry no dates |
+| Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
+| SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
+| Serper | `osp-serper` | `OSP_SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
+| You.com | `osp-youcom` | `OSP_YDC_API_KEY` | no | Web and news merged; extraction modes |
 
 ## Configuration
 
@@ -208,7 +210,7 @@ Knobs are environment variables, read once when OpenCode starts; change one and 
 | `ANYSEARCH_ZONE` | — | `cn` or `intl` |
 | `ANYSEARCH_LANGUAGE` | — | Preferred result language, e.g. `zh-CN` |
 | `ANYSEARCH_FORMAT` | `markdown` | `markdown` or `json` for the content field |
-| `ANYSEARCH_API_KEY` | — | Optional; anonymous access works without it |
+| `OSP_ANYSEARCH_API_KEY` | — | Optional; anonymous access works without it |
 
 ### Bocha
 
@@ -250,7 +252,7 @@ Knobs are environment variables, read once when OpenCode starts; change one and 
 | `KEENABLE_MAX_RESULTS` | `10` | Results per search, clamped to 1–50 |
 | `KEENABLE_MODE` | — | `pro` (deeper retrieval) or `realtime` (fastest); unset leaves Keenable's own default |
 | `KEENABLE_TITLE` | `opencode-search-plugin` | App name sent as `X-Keenable-Title`, which the keyless endpoint requires to attribute the call |
-| `KEENABLE_API_KEY` | — | Optional; keyless access works without it |
+| `OSP_KEENABLE_API_KEY` | — | Optional; keyless access works without it |
 
 ### Linkup
 
@@ -329,11 +331,11 @@ opencode api get "/api/websearch/provider"
 Also worth checking:
 
 - **A provider is missing from the pool**: it has no key, or `disable` (or a narrow `enable`) filtered it out. Run `/connect` or export its variable, then restart; credential changes made in `/connect` rebind without one. A name that should be there but is not is often a typo: the log flags unknown IDs and any `enable`/`disable` overlap.
-- **A search fails with `Keenable rate limited the request (HTTP 429)`**: the keyless pool is capped at 1,000 requests an hour and 10 a second per IP, shared with the rest of your egress address. Set `KEENABLE_API_KEY` to draw on your own allowance instead.
-- **A search fails with `Ollama API error 401`**: `OLLAMA_API_KEY` must be an ollama.com account key from [ollama.com/settings/keys](https://ollama.com/settings/keys). If it instead holds a bearer token for an Ollama-compatible proxy (a documented OpenCode config shape), store the real key in `/connect` for **Ollama Search (osp)** — a /connect credential outranks the environment.
+- **A search fails with `Keenable rate limited the request (HTTP 429)`**: the keyless pool is capped at 1,000 requests an hour and 10 a second per IP, shared with the rest of your egress address. Set `OSP_KEENABLE_API_KEY` to draw on your own allowance instead.
+- **A search fails with `Ollama API error 401`**: `OSP_OLLAMA_API_KEY` must be an ollama.com account key from [ollama.com/settings/keys](https://ollama.com/settings/keys). If it instead holds a bearer token for an Ollama-compatible proxy (a documented OpenCode config shape), store the real key in `/connect` for **Ollama Search (osp)** — a /connect credential outranks the environment.
 - **A search fails with `Bocha balance is exhausted (HTTP 403)`**: the account balance is spent; top up at [open.bocha.cn](https://open.bocha.cn). The message carries Bocha's own `message` text and a `log_id` to quote to their support.
 - **A search fails with `Bocha rate limited the request (HTTP 429)`**: the per-account request cap scales with the total recharge amount, so a small balance means a small ceiling. The report includes a `retry after Ns` hint when Bocha sent one.
-- **A search fails with `Connect X in /connect, or set X_API_KEY`**: the key disappeared between binding and searching. Reconnect or re-export.
+- **A search fails with `Connect X in /connect, or set OSP_X_API_KEY`**: the key disappeared between binding and searching. Reconnect or re-export.
 - **A search fails with `X search timed out after 25000ms`**: the provider accepted the request and never answered within the deadline. Retrying usually works; if a provider is consistently slow for you, raise its `<PROVIDER>_TIMEOUT`. This is a deliberate bound: without one a stalled provider hangs the whole turn, because OpenCode applies no timeout of its own around a search.
 - **Everything is slow or burning credits**: leave `*_CACHE_TTL` at its default. Repeated queries within the window are served from memory.
 - **Nothing happens after editing a plugin file**: OpenCode watches plugins and reloads them; if it does not, `opencode service restart`.

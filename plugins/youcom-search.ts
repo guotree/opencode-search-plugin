@@ -141,7 +141,7 @@ type SearchResult = ReturnType<typeof toResult>
 //   YOUCOM_COUNTRY       geographic focus, e.g. "US", "CN"
 //   YOUCOM_FRESHNESS     "day" | "week" | "month" | "year" or "YYYY-MM-DDtoYYYY-MM-DD"
 //   YOUCOM_TIMEOUT       ms to wait before failing (0 removes the deadline)
-//   YDC_API_KEY          required; You.com's canonical env var, shared with its SDKs
+//   OSP_YDC_API_KEY          required; You.com's canonical env var, shared with its SDKs
 const CACHE_TTL = envInt("YOUCOM_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -197,7 +197,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["YDC_API_KEY"] },
+        method: { type: "env", names: ["OSP_YDC_API_KEY"] },
       })
     })
 
@@ -217,7 +217,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.YDC_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_YDC_API_KEY
       })
 
     // You.com is bound to websearch only while a key exists. Deleting the key
@@ -241,7 +241,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect You.com in /connect, or set YDC_API_KEY"),
+                new Error("Connect You.com in /connect, or set OSP_YDC_API_KEY"),
               )
             }
 

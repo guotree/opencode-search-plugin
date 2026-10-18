@@ -69,13 +69,13 @@ function envStr(name: string): string {
 //                        so the default of 5 already means thousands of
 //                        characters of context per search
 //   OLLAMA_TIMEOUT       ms to wait before failing (0 removes the deadline)
-//   OLLAMA_API_KEY       required; from https://ollama.com/settings/keys.
-//                        The vendor-canonical name, which the official SDKs
-//                        also read, so one key serves both. A /connect
-//                        credential outranks it, which matters when this
-//                        variable instead holds a bearer token for an
-//                        Ollama-compatible proxy -- a documented config shape
-//                        whose token would be refused by ollama.com.
+//   OSP_OLLAMA_API_KEY   required; from https://ollama.com/settings/keys.
+//                        Namespaced away from the vendor-canonical
+//                        OLLAMA_API_KEY, which other tools -- and OpenCode's
+//                        own config examples -- also read, sometimes holding
+//                        a bearer token for an Ollama-compatible proxy
+//                        rather than an account key. A /connect credential
+//                        still outranks this variable.
 const CACHE_TTL = envInt("OLLAMA_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -127,7 +127,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["OLLAMA_API_KEY"] },
+        method: { type: "env", names: ["OSP_OLLAMA_API_KEY"] },
       })
     })
 
@@ -147,7 +147,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.OLLAMA_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_OLLAMA_API_KEY
       })
 
     // Web search requires an Ollama account, so the provider binds only while
@@ -172,7 +172,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Ollama in /connect, or set OLLAMA_API_KEY"),
+                new Error("Connect Ollama in /connect, or set OSP_OLLAMA_API_KEY"),
               )
             }
 

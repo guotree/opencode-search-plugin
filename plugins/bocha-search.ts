@@ -157,7 +157,7 @@ type SearchResult = ReturnType<typeof toResult>
 //   BOCHA_SUMMARY      true swaps each snippet for a generated summary --
 //                      more context to read, at the higher per-call price
 //   BOCHA_TIMEOUT      ms to wait before failing (0 removes the deadline)
-//   BOCHA_API_KEY      required; from https://open.bocha.cn
+//   OSP_BOCHA_API_KEY      required; from https://open.bocha.cn
 const CACHE_TTL = envInt("BOCHA_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -229,7 +229,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["BOCHA_API_KEY"] },
+        method: { type: "env", names: ["OSP_BOCHA_API_KEY"] },
       })
     })
 
@@ -249,7 +249,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.BOCHA_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_BOCHA_API_KEY
       })
 
     // Bocha has no anonymous tier, so the provider binds only while a key
@@ -274,7 +274,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Bocha in /connect, or set BOCHA_API_KEY"),
+                new Error("Connect Bocha in /connect, or set OSP_BOCHA_API_KEY"),
               )
             }
 
@@ -321,7 +321,7 @@ export const effect = (ctx: Plugin.Context) =>
                   new Error(
                     "Bocha rejected the API key (HTTP 401): " +
                       described +
-                      ". Connect Bocha in /connect or set BOCHA_API_KEY to a key from https://open.bocha.cn",
+                      ". Connect Bocha in /connect or set OSP_BOCHA_API_KEY to a key from https://open.bocha.cn",
                   ),
                 )
               }

@@ -15,7 +15,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "anysearch-search",
     providerID: "osp-anysearch",
     displayName: "AnySearch",
-    envKey: "ANYSEARCH_API_KEY",
+    envKey: "OSP_ANYSEARCH_API_KEY",
     response: {
       code: 0,
       data: {
@@ -41,7 +41,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "bocha-search",
     providerID: "osp-bocha",
     displayName: "Bocha Search",
-    envKey: "BOCHA_API_KEY",
+    envKey: "OSP_BOCHA_API_KEY",
     // The real envelope, including the `code`/`log_id`/`msg` that ride along
     // and the page fields this provider does not map. A null `dateLastCrawled`
     // is the shape Bocha's own example response uses for a page with no date:
@@ -87,7 +87,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "brave-search",
     providerID: "osp-brave",
     displayName: "Brave Search",
-    envKey: "BRAVE_SEARCH_API_KEY",
+    envKey: "OSP_BRAVE_SEARCH_API_KEY",
     response: {
       web: {
         results: [
@@ -112,7 +112,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "deepseek-search",
     providerID: "osp-deepseek",
     displayName: "DeepSeek",
-    envKey: "DEEPSEEK_API_KEY",
+    envKey: "OSP_DEEPSEEK_API_KEY",
     response: {
       results: [
         {
@@ -131,7 +131,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "jina-search",
     providerID: "osp-jina",
     displayName: "Jina",
-    envKey: "JINA_API_KEY",
+    envKey: "OSP_JINA_API_KEY",
     response: {
       data: [
         { title: "Jina hit", url: "https://example.com/jina", description: "Jina description" },
@@ -146,7 +146,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "keenable-search",
     providerID: "osp-keenable",
     displayName: "Keenable",
-    envKey: "KEENABLE_API_KEY",
+    envKey: "OSP_KEENABLE_API_KEY",
     response: {
       query: "a query",
       mode: "pro",
@@ -172,7 +172,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "linkup-search",
     providerID: "osp-linkup",
     displayName: "Linkup",
-    envKey: "LINKUP_API_KEY",
+    envKey: "OSP_LINKUP_API_KEY",
     response: {
       results: [
         {
@@ -191,7 +191,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "metaso-search",
     providerID: "osp-metaso",
     displayName: "Metaso Search",
-    envKey: "METASO_API_KEY",
+    envKey: "OSP_METASO_API_KEY",
     response: {
       webpages: [
         {
@@ -210,7 +210,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "ollama-search",
     providerID: "osp-ollama",
     displayName: "Ollama Search",
-    envKey: "OLLAMA_API_KEY",
+    envKey: "OSP_OLLAMA_API_KEY",
     // The hosted API's flat envelope: results only, no dates, no wrapper.
     response: {
       results: [
@@ -230,7 +230,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "querit-search",
     providerID: "osp-querit",
     displayName: "Querit",
-    envKey: "QUERIT_API_KEY",
+    envKey: "OSP_QUERIT_API_KEY",
     response: {
       error_code: 200,
       results: {
@@ -252,7 +252,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "serpapi-search",
     providerID: "osp-serpapi",
     displayName: "SerpApi",
-    envKey: "SERPAPI_API_KEY",
+    envKey: "OSP_SERPAPI_API_KEY",
     response: {
       organic_results: [
         {
@@ -271,7 +271,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "serper-search",
     providerID: "osp-serper",
     displayName: "Serper",
-    envKey: "SERPER_API_KEY",
+    envKey: "OSP_SERPER_API_KEY",
     response: {
       organic: [
         { title: "Serper hit", link: "https://example.com/serper", snippet: "Serper snippet" },
@@ -286,7 +286,7 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     pluginID: "youcom-search",
     providerID: "osp-youcom",
     displayName: "You.com",
-    envKey: "YDC_API_KEY",
+    envKey: "OSP_YDC_API_KEY",
     response: {
       results: {
         web: [

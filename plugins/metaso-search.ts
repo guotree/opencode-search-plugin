@@ -112,7 +112,7 @@ type SearchResult = ReturnType<typeof toResult>
 //                               search cost, far more context tokens. Only worth it
 //                               when you would otherwise webfetch those hits anyway.
 //   METASO_TIMEOUT              ms to wait before failing (0 removes the deadline)
-//   METASO_API_KEY              required; from https://metaso.cn
+//   OSP_METASO_API_KEY              required; from https://metaso.cn
 const CACHE_TTL = envInt("METASO_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -163,7 +163,7 @@ export const effect = (ctx: Plugin.Context) =>
       })
       editor.method.update({
         integrationID: ID,
-        method: { type: "env", names: ["METASO_API_KEY"] },
+        method: { type: "env", names: ["OSP_METASO_API_KEY"] },
       })
     })
 
@@ -183,7 +183,7 @@ export const effect = (ctx: Plugin.Context) =>
         const credential = connection
           ? yield* soften(ctx.integration.connection.resolve(connection))
           : undefined
-        return credential?.type === "key" ? credential.key : process.env.METASO_API_KEY
+        return credential?.type === "key" ? credential.key : process.env.OSP_METASO_API_KEY
       })
 
     // Metaso is bound to websearch only while a key exists. Deleting the key
@@ -207,7 +207,7 @@ export const effect = (ctx: Plugin.Context) =>
             const key = yield* resolveKey()
             if (!key) {
               return yield* Effect.fail(
-                new Error("Connect Metaso in /connect, or set METASO_API_KEY"),
+                new Error("Connect Metaso in /connect, or set OSP_METASO_API_KEY"),
               )
             }
 
