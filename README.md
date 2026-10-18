@@ -14,12 +14,12 @@ This repository adds plugins for eleven more of them, taking the pool from five 
 
 ## Install
 
-Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.1.1` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all eleven); use the third for one or two files only.
+Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.2.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all eleven); use the third for one or two files only.
 
 ### 1. From npm (recommended)
 
 ```sh
-# add @2.1.1 to pin
+# add @2.2.0 to pin
 opencode plugin add opencode-search-plugin
 ```
 
@@ -35,7 +35,7 @@ or declare it in `opencode.json(c)`:
 ### 2. From GitHub
 
 ```sh
-# add #v2.1.1 to pin
+# add #v2.2.0 to pin
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -117,7 +117,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form — naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one — `@2.1.1` on npm, `#v2.1.1` on GitHub — stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
+The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form — naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one — `@2.2.0` on npm, `#v2.2.0` on GitHub — stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
 
 ## Uninstall
 
@@ -178,6 +178,7 @@ Knobs are environment variables, read once when OpenCode starts — change one a
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `<PROVIDER>_CACHE_TTL` | `600000` | Milliseconds to reuse a response for the same normalized query. `0` disables caching. |
+| `<PROVIDER>_TIMEOUT` | `25000` | Milliseconds to wait for the provider before failing. `0` removes the deadline but keeps cancellation. |
 
 ### AnySearch
 
@@ -213,6 +214,7 @@ Knobs are environment variables, read once when OpenCode starts — change one a
 | `JINA_INCLUDE_CONTENT` | off | `true` returns each hit's full page markdown — far more context and billed tokens |
 | `JINA_GL` / `JINA_HL` | — | Country / language code |
 | `JINA_LOCATION` | — | City-level origin to simulate, e.g. `Berlin` |
+| `JINA_TIMEOUT` | `25000`, or `60000` with `JINA_INCLUDE_CONTENT` | Only provider whose deadline varies by mode: fetching whole pages is legitimately slower than a snippet search |
 
 ### Keenable
 
@@ -274,7 +276,7 @@ There is deliberately no result-count knob: Google withdrew the `num` parameter,
 1. OpenCode asks the selected provider for the query.
 2. The normalized query (trimmed, whitespace collapsed) is checked against an in-memory cache. A hit returns immediately — repeat queries are free and instant.
 3. On a miss the key is resolved again, so a key rotated in `/connect` applies to the very next search.
-4. The request goes out; failures surface the HTTP status and response body so you can see what the provider actually said.
+4. The request goes out under a deadline (`<PROVIDER>_TIMEOUT`, default 25s). OpenCode applies no timeout of its own around a search, so without this a provider that accepted the connection and then went silent would hang the whole turn. Failures surface the HTTP status and response body, or name the timeout when that is what happened.
 5. The response is schema-decoded, mapped to `{ url, title, content, time }`, and cached.
 
 Dates are parsed from relative phrases (`3 hours ago`, `3小时前`), absolute formats (`Sep 30, 2026`, `31 Mar 2026`), and ISO 8601. Strings whose lenient parsing would invent a wrong year — `Nov 1`, which `Date.parse` reads as 2001 — are dropped rather than reported as a bogus timestamp.
@@ -296,6 +298,7 @@ Also worth checking:
 - **A provider is missing from the pool** — it has no key, or `disable` (or a narrow `enable`) filtered it out. Run `/connect` or export its variable, then restart; credential changes made in `/connect` rebind without one. A name that should be there but is not is often a typo: the log flags unknown IDs and any `enable`/`disable` overlap.
 - **A search fails with `Keenable rate limited the request (HTTP 429)`** — the keyless pool is capped at 1,000 requests an hour and 10 a second per IP, shared with the rest of your egress address. Set `KEENABLE_API_KEY` to draw on your own allowance instead.
 - **A search fails with `Connect X in /connect, or set X_API_KEY`** — the key disappeared between binding and searching. Reconnect or re-export.
+- **A search fails with `X search timed out after 25000ms`** — the provider accepted the request and never answered within the deadline. Retrying usually works; if a provider is consistently slow for you, raise its `<PROVIDER>_TIMEOUT`. This is a deliberate bound: without one a stalled provider hangs the whole turn, because OpenCode applies no timeout of its own around a search.
 - **Everything is slow or burning credits** — leave `*_CACHE_TTL` at its default. Repeated queries within the window are served from memory.
 - **Nothing happens after editing a plugin file** — OpenCode watches plugins and reloads them; if it does not, `opencode service restart`.
 

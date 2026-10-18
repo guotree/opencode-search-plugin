@@ -32,10 +32,13 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 | --- | --- | --- |
 | `envInt` / `envStr` | all eleven | Environment knobs read once at load time |
 | `cacheKey` / `readCache` / `writeCache` | all eleven | Repeat queries are billed dispatches |
-| `parseSearchDate` and its tables | brave, metaso, querit, serpapi, serper, youcom | Relative and absolute date shapes, plus the `Date.parse` trap |
+| `timedSignal` | all eleven | The host applies no deadline around `execute` |
+| `parseSearchDate` and its tables | brave, deepseek, keenable, metaso, querit, serpapi, serper, youcom | Relative and absolute date shapes, plus the `Date.parse` trap |
 | `soften` | all eleven | The host types the credential API's failure channel as `unknown` |
 
 Files with no date field (anysearch, jina, linkup) must not carry `parseSearchDate`. The structure test asserts that too.
+
+`timedSignal` is not optional: OpenCode's own providers each bound themselves at 25s (`Effect.timeoutOrElse({ duration: Duration.seconds(25) })`), and `WebSearch.query` calls `provider.execute` with no deadline of its own. A provider that omits this can hang the agent for as long as the upstream stays silent. `test/structure.test.ts` asserts the block is present **and applied** — a file that defines `timedSignal` without passing its signal to `fetch` fails too.
 
 ## Identifiers are public API
 
@@ -67,8 +70,9 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 
 | File | Covers |
 | --- | --- |
-| `test/providers.test.ts` | The contract every provider must satisfy: binding, `/connect` wiring, mapping, caching, error status, rebind |
+| `test/providers.test.ts` | The contract every provider must satisfy: binding, `/connect` wiring, mapping, caching, error status, request deadline, rebind |
 | `test/brave-search.test.ts` | Brave-specific request construction and env knobs |
+| `test/jina-search.test.ts` | The one provider whose deadline default varies by mode |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
 | `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |

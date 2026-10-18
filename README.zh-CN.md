@@ -14,12 +14,12 @@ OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parall
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.1.1` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十一个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.2.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十一个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
 ```sh
-# 追加 @2.1.1 可固定到该版本
+# 追加 @2.2.0 可固定到该版本
 opencode plugin add opencode-search-plugin
 ```
 
@@ -35,7 +35,7 @@ opencode plugin add opencode-search-plugin
 ### 2. 从 GitHub 安装
 
 ```sh
-# 追加 #v2.1.1 可固定到该 tag
+# 追加 #v2.2.0 可固定到该 tag
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -117,7 +117,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@2.1.1`、GitHub 形式的 `#v2.1.1`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
+升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@2.2.0`、GitHub 形式的 `#v2.2.0`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
 
 ## 卸载
 
@@ -178,6 +178,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
 | `<PROVIDER>_CACHE_TTL` | `600000` | 同一条归一化查询可复用响应的毫秒数。`0` 关闭缓存。 |
+| `<PROVIDER>_TIMEOUT` | `25000` | 等待 provider 返回的毫秒数，超时即失败。`0` 取消该期限，但保留取消能力。 |
 
 ### AnySearch
 
@@ -213,6 +214,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `JINA_INCLUDE_CONTENT` | 关 | `true` 返回每条命中的整页 markdown——上下文和计费 token 都会大幅增加 |
 | `JINA_GL` / `JINA_HL` | — | 国家 / 语言代码 |
 | `JINA_LOCATION` | — | 模拟的城市级来源，例如 `Berlin` |
+| `JINA_TIMEOUT` | `25000`；开启 `JINA_INCLUDE_CONTENT` 时为 `60000` | 唯一一个默认值随模式变化的 provider：抓取整页本来就比取摘要慢得多 |
 
 ### Keenable
 
@@ -274,7 +276,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 1. OpenCode 向选定的 provider 发起查询。
 2. 归一化后的查询（去首尾、压缩空白）先查内存缓存；命中则直接返回——重复查询免费且即时。
 3. 未命中时重新解析密钥，因此在 `/connect` 里轮换的 key 立即对下一次搜索生效。
-4. 发出请求；失败时会带上 HTTP 状态码和响应体，让你看到服务方到底说了什么。
+4. 发出请求，且带期限（`<PROVIDER>_TIMEOUT`，默认 25 秒）。OpenCode 自身并不给搜索加任何超时，所以没有这道期限的话，一个接受了连接却不再应答的 provider 会挂住整轮对话。失败时会带上 HTTP 状态码和响应体；如果是超时，报错会直接点明是超时。
 5. 响应经 schema 解码，映射为 `{ url, title, content, time }`，然后写入缓存。
 
 日期解析支持相对表述（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601。凡是宽松解析会凭空造出错误年份的字符串——比如 `Nov 1`，`Date.parse` 会读成 2001 年——一律丢弃，而不是返回一个错误的时间戳。
@@ -296,6 +298,7 @@ opencode api get "/api/websearch/provider"
 - **某家 provider 不在池里** —— 它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
 - **搜索报错 `Keenable rate limited the request (HTTP 429)`** —— 无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
 - **搜索报错 `Connect X in /connect, or set X_API_KEY`** —— key 在绑定和搜索之间消失了。重新连接或重新导出。
+- **搜索报错 `X search timed out after 25000ms`** —— provider 接受了请求，但在期限内没有返回。重试通常就好；如果某家 provider 在你这边一贯偏慢，调大它的 `<PROVIDER>_TIMEOUT`。这道期限是刻意加的：没有它，一个卡住的 provider 会挂住整轮对话，因为 OpenCode 自身并不给搜索设置任何超时。
 - **一切都很慢、或者积分烧得飞快** —— 把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。
 - **改了插件文件却没反应** —— OpenCode 会监视插件并自动重载；如果没有，执行 `opencode service restart`。
 

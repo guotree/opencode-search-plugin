@@ -6,6 +6,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-18
+
+### Added
+
+- **A request deadline on every provider**, as `<PROVIDER>_TIMEOUT` (default
+  `25000`, matching OpenCode's own providers, each of which bounds itself at
+  `Duration.seconds(25)`). `0` removes the deadline but keeps cancellation.
+  Jina is the one exception: its default is `60000` when
+  `JINA_INCLUDE_CONTENT` is on, because fetching whole pages is legitimately
+  slower than a snippet search and a shared budget would either cut that off
+  or be padded high enough that a genuine hang takes a minute to surface.
+- The request now also observes the signal `Effect.tryPromise` hands its
+  thunk, so cancelling the turn stops the fetch instead of leaving it running
+  in the background. For a metered provider that is a billed dispatch the user
+  would otherwise pay for after walking away.
+
+### Fixed
+
+- **A stalled upstream hung the turn indefinitely.** Every provider called
+  `fetch` with no `AbortSignal` and no deadline, and OpenCode applies neither
+  around `WebSearch.query`'s `provider.execute` — the only timeout in that
+  tool wraps the provider-selection form, and the search itself runs outside
+  it. A provider that accepted a connection and then went silent kept the
+  search waiting forever, indistinguishable from a slow but healthy one. The
+  timeout is reported by name (`X search timed out after 25000ms`) so it is
+  not mistaken for an authentication problem.
+- `timedSignal` joins the shared blocks in `CONTRIBUTING.md`, and
+  `test/structure.test.ts` asserts both that it is present and that its signal
+  actually reaches `fetch` — a file that defines the helper without applying
+  it fails too.
+
 ## [2.1.1] - 2026-10-18
 
 ### Changed
@@ -175,7 +206,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.2.0
 [2.1.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.1
 [2.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.1.0
 [2.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.0.0
