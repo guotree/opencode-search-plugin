@@ -77,6 +77,7 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
 
 /** Files that carry a date field and must therefore share the date parser. */
 const WITH_DATES = [
+  "bocha-search",
   "brave-search",
   "deepseek-search",
   "keenable-search",
@@ -99,6 +100,7 @@ const WITH_DATES = [
  */
 const WITH_TIMEOUT = [
   "anysearch-search",
+  "bocha-search",
   "brave-search",
   "deepseek-search",
   "jina-search",

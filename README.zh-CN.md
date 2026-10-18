@@ -8,7 +8,7 @@
 
 **不用 API key，装上就能搜。**
 
-一条命令，给 OpenCode v2 加上十一个搜索 provider，搜索池从五家扩到十六家。AnySearch 和 Keenable 不用 key 直接能用；其余九家等你配好 key 才会启用。
+一条命令，给 OpenCode v2 加上十二个搜索 provider，搜索池从五家扩到十七家。AnySearch 和 Keenable 不用 key 直接能用；其余十家等你配好 key 才会启用。
 
 ```sh
 opencode plugin add opencode-search-plugin
@@ -19,19 +19,19 @@ opencode plugin add opencode-search-plugin
 <!-- TODO: 录一段 10 秒 GIF 后替换本注释：
      提问 → websearch 工具触发 → 结果返回 -->
 
-十一个 provider 装一次全有，想用哪家用哪家：
+十二个 provider 装一次全有，想用哪家用哪家：
 
-[AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## 为什么做这个插件
 
 OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。在这个范围之外，还有大量搜索 API 提供免费额度或免费层级，足以支撑 agent 的日常检索而不必为此付费。
 
-本仓库为其中十一家补上了插件，把可用池从五个 provider 扩到十六个。AnySearch 和 Keenable 无需任何 key 即可使用；其余九家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
+本仓库为其中十二家补上了插件，把可用池从五个 provider 扩到十七个。AnySearch 和 Keenable 无需任何 key 即可使用；其余十家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.2.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十一个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.2.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十二个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
@@ -84,7 +84,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 ### 跳过你没有 key 的服务
 
-装包会注册全部十一家，但没有 key 的 provider 永远不会进入搜索池（见下文[密钥](#密钥)）。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
+装包会注册全部十二家，但没有 key 的 provider 永远不会进入搜索池（见下文[密钥](#密钥)）。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
 
 ```jsonc
 {
@@ -175,6 +175,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
+| Bocha | `osp-bocha` | `BOCHA_API_KEY` | 否 | 结果格式兼容 Bing；按搜索次数计费，要求摘要时另按 token 计费 |
 | Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
 | DeepSeek | `osp-deepseek` | `DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
 | Jina | `osp-jina` | `JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
@@ -190,7 +191,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 所有配置项都是环境变量，OpenCode 启动时读取一次，改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
 
-### 十一家通用
+### 十二家通用
 
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -207,6 +208,14 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `ANYSEARCH_LANGUAGE` | — | 首选结果语言，例如 `zh-CN` |
 | `ANYSEARCH_FORMAT` | `markdown` | content 字段用 `markdown` 还是 `json` |
 | `ANYSEARCH_API_KEY` | — | 可选；不设也能匿名使用 |
+
+### Bocha
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `BOCHA_COUNT` | `10` | 每次搜索的结果数，限制在 1–50（博查的上限） |
+| `BOCHA_FRESHNESS` | — | `noLimit`、`oneDay`、`oneWeek`、`oneMonth`、`oneYear`、`YYYY-MM-DD` 单日，或 `YYYY-MM-DD..YYYY-MM-DD` 区间。不设即不传该参数，这也是文档的建议：博查会自行改写时间范围，而指定区间往往在该区间内找不到结果 |
+| `BOCHA_SUMMARY` | 关 | `true` 用生成的摘要替换每条 snippet——上下文更多，单次调用的价格也更高 |
 
 ### Brave Search
 
@@ -314,6 +323,8 @@ opencode api get "/api/websearch/provider"
 
 - 某家 provider 不在池里：它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
 - 搜索报错 `Keenable rate limited the request (HTTP 429)`：无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
+- 搜索报错 `Bocha balance is exhausted (HTTP 403)`：账户余额用尽；到 [open.bocha.cn](https://open.bocha.cn) 充值。报错会带上博查自己的 `message` 文本和一个 `log_id`，联系他们客服时请附上。
+- 搜索报错 `Bocha rate limited the request (HTTP 429)`：单账户的请求上限与总充值金额挂钩，余额少则天花板低。博查返回了 `Retry-After` 时，报错里会带上 `retry after Ns` 提示。
 - 搜索报错 `Connect X in /connect, or set X_API_KEY`：key 在绑定和搜索之间消失了。重新连接或重新导出。
 - 搜索报错 `X search timed out after 25000ms`：provider 接受了请求，但在期限内没有返回。重试通常就好；如果某家 provider 在你这边一贯偏慢，调大它的 `<PROVIDER>_TIMEOUT`。这道期限是刻意加的：没有它，一个卡住的 provider 会挂住整轮对话，因为 OpenCode 自身并不给搜索设置任何超时。
 - 一切都很慢，或者积分烧得飞快：把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。

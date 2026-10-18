@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Bocha** (`plugins/bocha-search.ts`), the twelfth provider, on the
+  Bing-compatible Web Search API at `api.bocha.cn` (`osp-bocha`,
+  `BOCHA_API_KEY`). The snippet is the default content and `summary` is left
+  off, which matches the API's own default: a generated summary costs more
+  per call than the search that produced it, and `BOCHA_SUMMARY=true` is the
+  switch for when the extra context earns that. `BOCHA_FRESHNESS` is omitted
+  unless set, because the docs recommend `noLimit` -- the search rewrites
+  time ranges itself, and a pinned range often finds nothing within it.
+  Bocha's example response omits `datePublished`, but the live API carries
+  both date fields on every hit: `datePublished` with its true UTC+8 offset,
+  and the misnamed `dateLastCrawled` holding the same wall clock stamped
+  with a "Z" that lies. The parser prefers the honest field and keeps the
+  documented "Z" -> "+08:00" rewrite as its fallback, pinned by comment to
+  the API's promised v2 fix. The envelope, the `summary` switch, `freshness`
+  and the 401 refusal body were all checked against the live API.
+
 ## [2.2.0] - 2026-10-18
 
 ### Added

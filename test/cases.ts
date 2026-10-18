@@ -37,6 +37,52 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "bocha-search",
+    pluginID: "bocha-search",
+    providerID: "osp-bocha",
+    displayName: "Bocha Search",
+    envKey: "BOCHA_API_KEY",
+    // The real envelope, including the `code`/`log_id`/`msg` that ride along
+    // and the page fields this provider does not map. A null `dateLastCrawled`
+    // is the shape Bocha's own example response uses for a page with no date:
+    // it must decode to no `time`, not to a failure.
+    response: {
+      code: 200,
+      log_id: "d71841ad20095f61",
+      msg: null,
+      data: {
+        _type: "SearchResponse",
+        queryContext: { originalQuery: "a query" },
+        webPages: {
+          webSearchUrl: "",
+          totalEstimatedMatches: 8912791,
+          value: [
+            {
+              id: null,
+              name: "Bocha hit",
+              url: "https://example.com/bocha",
+              displayUrl: "https://example.com/bocha",
+              snippet: "Bocha snippet",
+              siteName: "example.com",
+              siteIcon: "https://example.com/favicon.ico",
+              dateLastCrawled: null,
+              cachedPageUrl: null,
+              language: null,
+              isFamilyFriendly: null,
+              isNavigational: null,
+            },
+          ],
+          someResultsRemoved: true,
+        },
+        images: { value: [] },
+        videos: null,
+      },
+    },
+    expected: [
+      { url: "https://example.com/bocha", title: "Bocha hit", content: "Bocha snippet" },
+    ],
+  },
+  {
     file: "brave-search",
     pluginID: "brave-search",
     providerID: "osp-brave",
