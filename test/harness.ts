@@ -255,7 +255,7 @@ export interface ProviderCase {
   pluginID: string
   /** ID passed to `editor.add`, i.e. the websearch provider ID. */
   providerID: string
-  /** Display name registered for both the provider and the integration. */
+  /** Display name registered for the websearch provider. The /connect integration appends the ` (osp)` package marker — see providers.test.ts. */
   displayName: string
   /** Environment variable registered as the integration's key method. */
   envKey: string

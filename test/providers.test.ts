@@ -58,7 +58,9 @@ describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
     expect(harness.providers.map((p) => p.name)).toEqual([spec.displayName])
     // The integration ID must equal the websearch provider ID, or credentials
     // saved in /connect would be stored against an ID the pool never reads.
-    expect(harness.integrationNames.get(spec.providerID)).toBe(spec.displayName)
+    // The /connect display name carries the ` (osp)` package marker, so an
+    // entry cannot be confused with a built-in integration of the same brand.
+    expect(harness.integrationNames.get(spec.providerID)).toBe(`${spec.displayName} (osp)`)
     expect(harness.envMethods).toEqual([
       { integrationID: spec.providerID, names: [spec.envKey] },
     ])

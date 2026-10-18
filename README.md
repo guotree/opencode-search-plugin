@@ -153,6 +153,8 @@ Once keys are in place, pick how OpenCode chooses among them:
 
 Every ID below carries an `osp-` prefix — this package's namespace. OpenCode's own providers register bare vendor names (`exa`, `tavily`), and a vendor's official plugin would do the same, so the prefix is what keeps those entries from colliding with ours — both in the websearch pool and in the `/connect` table, where credentials are keyed by integration ID. Use the prefixed form verbatim in `websearch.provider` and in `enable`/`disable`.
 
+The namespace also shows on the display name: `/connect` lists each of this package's entries with an `(osp)` marker — `DeepSeek (osp)` beside a built-in `DeepSeek` — so a key saved here cannot be mistaken for a built-in provider's. The websearch pool keeps the plain provider name, since the pool holds only search providers and the collision does not exist there.
+
 | Provider | ID | Key (env / `/connect`) | Anonymous | Notes |
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |

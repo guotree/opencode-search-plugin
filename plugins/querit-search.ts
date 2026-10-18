@@ -153,7 +153,7 @@ export const effect = (ctx: Plugin.Context) =>
     // Make "Querit" show up in /connect with an API-key method.
     yield* ctx.integration.transform((editor) => {
       editor.update(ID, (integration) => {
-        integration.name = "Querit"
+        integration.name = "Querit (osp)"
       })
       editor.method.update({
         integrationID: ID,

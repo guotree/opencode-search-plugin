@@ -112,7 +112,7 @@ export const effect = (ctx: Plugin.Context) =>
     // Make "Jina" show up in /connect with an API-key method.
     yield* ctx.integration.transform((editor) => {
       editor.update(ID, (integration) => {
-        integration.name = "Jina"
+        integration.name = "Jina (osp)"
       })
       editor.method.update({
         integrationID: ID,

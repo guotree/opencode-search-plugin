@@ -61,7 +61,7 @@ describe("brave-search", () => {
   it("binds the provider and wires /connect when a key is stored", async () => {
     const { mod, harness } = await bind()
     expect(harness.providers.map((p) => p.id)).toEqual(["osp-brave"])
-    expect(harness.integrationNames.get("osp-brave")).toBe("Brave Search")
+    expect(harness.integrationNames.get("osp-brave")).toBe("Brave Search (osp)")
     expect(harness.envMethods).toEqual([
       { integrationID: "osp-brave", names: ["BRAVE_SEARCH_API_KEY"] },
     ])

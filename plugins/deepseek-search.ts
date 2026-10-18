@@ -143,7 +143,7 @@ export const effect = (ctx: Plugin.Context) =>
     // Make "DeepSeek" show up in /connect with an API-key method.
     yield* ctx.integration.transform((editor) => {
       editor.update(ID, (integration) => {
-        integration.name = "DeepSeek"
+        integration.name = "DeepSeek (osp)"
       })
       editor.method.update({
         integrationID: ID,

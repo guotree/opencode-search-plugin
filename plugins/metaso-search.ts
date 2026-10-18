@@ -143,7 +143,7 @@ export const effect = (ctx: Plugin.Context) =>
     // Make "Metaso" show up in /connect with an API-key method.
     yield* ctx.integration.transform((editor) => {
       editor.update(ID, (integration) => {
-        integration.name = "Metaso Search"
+        integration.name = "Metaso Search (osp)"
       })
       editor.method.update({
         integrationID: ID,

@@ -163,7 +163,7 @@ export const effect = (ctx: Plugin.Context) =>
     // Make "Keenable" show up in /connect with an API-key method.
     yield* ctx.integration.transform((editor) => {
       editor.update(ID, (integration) => {
-        integration.name = "Keenable"
+        integration.name = "Keenable (osp)"
       })
       editor.method.update({
         integrationID: ID,

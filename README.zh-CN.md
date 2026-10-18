@@ -153,6 +153,8 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 下表每个 ID 都带 `osp-` 前缀——这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `enable`/`disable` 里请原样使用带前缀的 ID。
 
+命名空间同样体现在显示名上：`/connect` 里本包的每个条目都带 `(osp)` 标记——内置的 `DeepSeek` 旁边是 `DeepSeek (osp)`——存在这里的 key 不会和内置 provider 的混淆。搜索池里仍用纯品牌名，因为池中只有搜索 provider，不存在撞名问题。
+
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
