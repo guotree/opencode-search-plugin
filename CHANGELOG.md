@@ -24,6 +24,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the API's promised v2 fix. The envelope, the `summary` switch, `freshness`
   and the 401 refusal body were all checked against the live API.
 
+### Fixed
+
+- `package.json` exported every provider file as a subpath except
+  `./deepseek-search`, so the deep link for that one provider resolved to
+  nothing.
+
 ## [2.2.0] - 2026-10-18
 
 ### Added

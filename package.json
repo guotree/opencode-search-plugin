@@ -25,6 +25,7 @@
     "./anysearch-search": "./plugins/anysearch-search.ts",
     "./bocha-search": "./plugins/bocha-search.ts",
     "./brave-search": "./plugins/brave-search.ts",
+    "./deepseek-search": "./plugins/deepseek-search.ts",
     "./jina-search": "./plugins/jina-search.ts",
     "./keenable-search": "./plugins/keenable-search.ts",
     "./linkup-search": "./plugins/linkup-search.ts",
