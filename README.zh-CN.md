@@ -2,7 +2,24 @@
 
 # opencode-search-plugin
 
-十一个相互独立的 [OpenCode](https://opencode.ai) v2 插件，各自注册一个网页搜索 provider。每个文件都能单独使用：复制一个进你的插件目录，或者安装这个包一次拿全十一个。
+[![npm version](https://img.shields.io/npm/v/opencode-search-plugin.svg)](https://www.npmjs.com/package/opencode-search-plugin)
+[![npm downloads](https://img.shields.io/npm/dm/opencode-search-plugin.svg)](https://www.npmjs.com/package/opencode-search-plugin)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**不用 API key，装上就能搜。**
+
+一条命令，给 OpenCode v2 加上十一个搜索 provider，搜索池从五家扩到十六家。AnySearch 和 Keenable 不用 key 直接能用；其余九家等你配好 key 才会启用。
+
+```sh
+opencode plugin add opencode-search-plugin
+```
+
+装完就能问 OpenCode 需要联网的问题。
+
+<!-- TODO: 录一段 10 秒 GIF 后替换本注释：
+     提问 → websearch 工具触发 → 结果返回 -->
+
+十一个 provider 装一次全有，想用哪家用哪家：
 
 [AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
@@ -67,7 +84,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 ### 跳过你没有 key 的服务
 
-装包会注册全部十一家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
+装包会注册全部十一家，但没有 key 的 provider 永远不会进入搜索池（见下文[密钥](#密钥)）。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
 
 ```jsonc
 {
@@ -81,7 +98,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 ```
 
 - `disable` 是黑名单：它列出的 provider ID（见下文[支持的服务](#支持的服务)的表格）永远不会注册。AnySearch 和 Keenable 不需要 key，想把这两家也排除在搜索池之外，只能用 `disable`。
-- `enable` 是白名单：只注册列出的 ID，其余一律跳过——`"enable": ["osp-brave", "osp-jina"]` 表示只跑这两家。
+- `enable` 是白名单：只注册列出的 ID，其余一律跳过；`"enable": ["osp-brave", "osp-jina"]` 只跑这两家。
 
 两者同时配置时，**交集由 `disable` 胜出**：逐家的排除绝不会被批量白名单覆盖。
 
@@ -96,7 +113,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 }
 ```
 
-用集合运算来读：实际注册的池 = `enable − disable`。交集被剔除；`disable` 里不在 `enable` 中的 ID 从一开始就不在候选内——属于无害的冗余，不会被报告。唯一会触发警告的冗余是交集，日志会点出其中的 ID。
+用集合运算来读：实际注册的池 = `enable − disable`。交集被剔除；`disable` 里不在 `enable` 中的 ID 从一开始就不在候选内，属于无害的冗余，不报警告。唯一会触发警告的冗余是交集，日志会点出其中的 ID。
 
 ```text
 enable  = {osp-brave, osp-jina, osp-serper, osp-keenable, osp-linkup}
@@ -104,7 +121,7 @@ disable = {osp-keenable, osp-linkup, osp-youcom}
 pool    =  osp-brave, osp-jina          -- enable 减 disable
 ```
 
-无法生效的配置会在日志里提示，而不是被悄悄丢弃：写错的 ID（本包没注册的名字）会被点名，选项不是数组也会被点名。`enable` 如果最终一个已知 provider 都没匹配上，搜索池会是空的——日志里会写明这一点。
+无法生效的配置会在日志里提示，而不是被悄悄丢弃：写错的 ID（本包没注册的名字）会被点名，选项不是数组也会被点名。`enable` 如果最终一个已知 provider 都没匹配上，搜索池会是空的，日志里会写明这一点。
 
 ## 升级
 
@@ -117,7 +134,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式——用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的——npm 形式的 `@2.2.0`、GitHub 形式的 `#v2.2.0`——会停在原地，直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件则用新版本覆盖旧文件来升级。
+升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式，用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的会停在原地（npm 形式是 `@2.2.0`，GitHub 形式是 `#v2.2.0`），直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件用新版本覆盖旧文件即可。
 
 ## 卸载
 
@@ -128,18 +145,18 @@ opencode plugin remove opencode-search-plugin
 opencode plugin remove github:guotree/opencode-search-plugin
 ```
 
-同上：传入安装时使用的说明符。该命令修改的是全局配置；若插件是写在 `opencode.json(c)` 的 `plugins` 条目里或本地复制的文件，删掉对应条目、或删掉复制的 `.ts` 文件即可。`/connect` 里保存的密钥不受影响——重新装回就能继续用——只想关掉其中几家而不是整个插件，用上文的 `enable`/`disable`。
+同上：传入安装时使用的说明符。该命令修改的是全局配置；若插件是写在 `opencode.json(c)` 的 `plugins` 条目里或本地复制的文件，删掉对应条目、或删掉复制的 `.ts` 文件即可。`/connect` 里保存的密钥不受影响，重新装回就能继续用。只想关掉其中几家而不是整个插件，用上文的 `enable`/`disable`。
 
 ## 密钥
 
 除 AnySearch 和 Keenable 外，每家服务都需要 API key。两种给法二选一：
 
-- **OpenCode 内的 `/connect`** —— 按 provider 存储，轮换后无需重启，且不受环境变量变动影响。
-- **环境变量** —— 作为兜底读取，因此在无界面和 CI 场景下也能工作。
+- **OpenCode 内的 `/connect`**：按 provider 存储，轮换后无需重启，也不受环境变量变动影响。
+- **环境变量**：作为兜底读取，无界面和 CI 场景下也能工作。
 
 没有 key 的 provider 会保持未绑定状态：它不在 websearch 池中，所以 `"provider": "random"` 绝不会把查询路由到一个注定失败的服务上。
 
-AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册，只有存在 key 时才附带各自的凭据头。Keenable 的两层额度互不通用：有 key 时消耗每月 100,000 次的免费额度，无 key 的请求则改走 `/public` 端点，按速率限制——每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的所有人共用。想摆脱这个共享池的不确定性，就得配一把 key。
+AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册，只有存在 key 时才附带各自的凭据头。Keenable 的两层额度互不通用：有 key 时消耗每月 100,000 次的免费额度，无 key 的请求则改走 `/public` 端点，按速率限制：每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的所有人共用。想摆脱这个共享池的不确定性，就得配一把 key。
 
 密钥就位后，再决定 OpenCode 如何在它们之间做选择：
 
@@ -151,9 +168,9 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 ## 支持的服务
 
-下表每个 ID 都带 `osp-` 前缀——这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `enable`/`disable` 里请原样使用带前缀的 ID。
+下表每个 ID 都带 `osp-` 前缀，这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `enable`/`disable` 里请原样使用带前缀的 ID。
 
-命名空间同样体现在显示名上：`/connect` 里本包的每个条目都带 `(osp)` 标记——内置的 `DeepSeek` 旁边是 `DeepSeek (osp)`——存在这里的 key 不会和内置 provider 的混淆。搜索池里仍用纯品牌名，因为池中只有搜索 provider，不存在撞名问题。
+命名空间同样体现在显示名上：`/connect` 里本包的每个条目都带 `(osp)` 标记（内置的 `DeepSeek` 旁边是 `DeepSeek (osp)`），存在这里的 key 不会和内置 provider 的混淆。搜索池里仍用纯品牌名，因为池中只有搜索 provider，不存在撞名问题。
 
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -171,7 +188,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 ## 配置
 
-所有配置项都是环境变量，OpenCode 启动时读取一次——改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
+所有配置项都是环境变量，OpenCode 启动时读取一次，改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
 
 ### 十一家通用
 
@@ -211,7 +228,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
 | `JINA_NUM` | `0` | 每次搜索的结果数，1–100。`0` 表示不传该参数，从而保留 Jina 更快、类型更全的结果 |
-| `JINA_INCLUDE_CONTENT` | 关 | `true` 返回每条命中的整页 markdown——上下文和计费 token 都会大幅增加 |
+| `JINA_INCLUDE_CONTENT` | 关 | `true` 返回每条命中的整页 markdown，上下文和计费 token 都会大幅增加 |
 | `JINA_GL` / `JINA_HL` | — | 国家 / 语言代码 |
 | `JINA_LOCATION` | — | 模拟的城市级来源，例如 `Berlin` |
 | `JINA_TIMEOUT` | `25000`；开启 `JINA_INCLUDE_CONTENT` 时为 `60000` | 唯一一个默认值随模式变化的 provider：抓取整页本来就比取摘要慢得多 |
@@ -274,12 +291,12 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 ## 一次查询的完整流程
 
 1. OpenCode 向选定的 provider 发起查询。
-2. 归一化后的查询（去首尾、压缩空白）先查内存缓存；命中则直接返回——重复查询免费且即时。
+2. 归一化后的查询（去首尾、压缩空白）先查内存缓存；命中则直接返回，重复查询免费且即时。
 3. 未命中时重新解析密钥，因此在 `/connect` 里轮换的 key 立即对下一次搜索生效。
 4. 发出请求，且带期限（`<PROVIDER>_TIMEOUT`，默认 25 秒）。OpenCode 自身并不给搜索加任何超时，所以没有这道期限的话，一个接受了连接却不再应答的 provider 会挂住整轮对话。失败时会带上 HTTP 状态码和响应体；如果是超时，报错会直接点明是超时。
 5. 响应经 schema 解码，映射为 `{ url, title, content, time }`，然后写入缓存。
 
-日期解析支持相对表述（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601。凡是宽松解析会凭空造出错误年份的字符串——比如 `Nov 1`，`Date.parse` 会读成 2001 年——一律丢弃，而不是返回一个错误的时间戳。
+日期解析支持相对表述（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601。凡是宽松解析会凭空造出错误年份的字符串（比如 `Nov 1`，`Date.parse` 会读成 2001 年）一律丢弃，而不是返回一个错误的时间戳。
 
 ## 排错
 
@@ -295,12 +312,12 @@ opencode api get "/api/websearch/provider"
 
 另外几个值得检查的地方：
 
-- **某家 provider 不在池里** —— 它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
-- **搜索报错 `Keenable rate limited the request (HTTP 429)`** —— 无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
-- **搜索报错 `Connect X in /connect, or set X_API_KEY`** —— key 在绑定和搜索之间消失了。重新连接或重新导出。
-- **搜索报错 `X search timed out after 25000ms`** —— provider 接受了请求，但在期限内没有返回。重试通常就好；如果某家 provider 在你这边一贯偏慢，调大它的 `<PROVIDER>_TIMEOUT`。这道期限是刻意加的：没有它，一个卡住的 provider 会挂住整轮对话，因为 OpenCode 自身并不给搜索设置任何超时。
-- **一切都很慢、或者积分烧得飞快** —— 把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。
-- **改了插件文件却没反应** —— OpenCode 会监视插件并自动重载；如果没有，执行 `opencode service restart`。
+- 某家 provider 不在池里：它没有 key，或者被 `disable`（或收窄后的 `enable`）过滤掉了。执行 `/connect` 或导出对应环境变量，然后重启；在 `/connect` 里做的凭据变更会自动重绑，不需要重启。本该在却不在的名字多半是拼写错误：日志会点出无法识别的 ID 和 `enable`/`disable` 的交集。
+- 搜索报错 `Keenable rate limited the request (HTTP 429)`：无 key 层级每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的其他人共用。改用 `KEENABLE_API_KEY` 就会记到你自己的额度上。
+- 搜索报错 `Connect X in /connect, or set X_API_KEY`：key 在绑定和搜索之间消失了。重新连接或重新导出。
+- 搜索报错 `X search timed out after 25000ms`：provider 接受了请求，但在期限内没有返回。重试通常就好；如果某家 provider 在你这边一贯偏慢，调大它的 `<PROVIDER>_TIMEOUT`。这道期限是刻意加的：没有它，一个卡住的 provider 会挂住整轮对话，因为 OpenCode 自身并不给搜索设置任何超时。
+- 一切都很慢，或者积分烧得飞快：把 `*_CACHE_TTL` 保持在默认值。时间窗内的重复查询由内存直接返回。
+- 改了插件文件却没反应：OpenCode 会监视插件并自动重载；如果没有，执行 `opencode service restart`。
 
 日志在 `~/.local/share/opencode/log/opencode.log`；过滤 `loading plugin` 可以看到 OpenCode 解析到的每个插件及其入口文件。本插件关于 `enable`/`disable` 的警告也落在同一个文件里，带 `[opencode-search-plugin]` 前缀。
 
@@ -311,10 +328,10 @@ npm install
 npm run check     # 类型检查 + 测试
 ```
 
-- `npm run typecheck` —— 对所有插件和测试做严格 TypeScript 检查。
-- `npm test` —— 覆盖通用 provider 契约、各家行为、日期解析、聚合注册，以及仓库结构守卫。
+- `npm run typecheck`：对所有插件和测试做严格 TypeScript 检查。
+- `npm test`：覆盖通用 provider 契约、各家行为、日期解析、聚合注册，以及仓库结构守卫。
 
-`@opencode/plugin` 和 `effect` 声明为 **devDependencies**，而不是 `dependencies`。这两个模块由 OpenCode 在运行时提供——这正是单个 `.ts` 文件可以放进 `~/.config/opencode/plugins/` 且完全不需要 `node_modules` 的原因。若写成运行时依赖，`opencode plugin add` 会为了 100 KB 的插件源码安装 127 MB 的依赖树（仅 `effect` 就 47 MB，`@opencode/plugin` 还会拖进 `@aws-sdk`、`google-auth-library` 和 `@opentelemetry`）；放进 devDependencies 后，类型检查和测试照常可用，而使用者安装时拿不到这份依赖树。
+`@opencode/plugin` 和 `effect` 声明为 **devDependencies**，而不是 `dependencies`。这两个模块由 OpenCode 在运行时提供，这也是单个 `.ts` 文件可以放进 `~/.config/opencode/plugins/` 且完全不需要 `node_modules` 的原因。若写成运行时依赖，`opencode plugin add` 会为了 100 KB 的插件源码安装 127 MB 的依赖树（仅 `effect` 就 47 MB，`@opencode/plugin` 还会拖进 `@aws-sdk`、`google-auth-library` 和 `@opentelemetry`）；放进 devDependencies 后，类型检查和测试照常可用，而使用者安装时拿不到这份依赖树。
 
 存在结构测试，是因为每个文件必须保持可独立复制：一旦某个插件开始 import 同级模块、共享代码块不再是逐字相同的副本、或者某家的 ID 出现偏移，测试就会失败。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
