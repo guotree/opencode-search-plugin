@@ -2,7 +2,7 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-Ten self-contained [OpenCode](https://opencode.ai) v2 plugins that register web search providers. Each file stands on its own: copy one into your plugins directory, or install the package to get all ten.
+Eleven self-contained [OpenCode](https://opencode.ai) v2 plugins that register web search providers. Each file stands on its own: copy one into your plugins directory, or install the package to get all eleven.
 
 [AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
@@ -10,11 +10,11 @@ Ten self-contained [OpenCode](https://opencode.ai) v2 plugins that register web 
 
 OpenCode v2 ships with five web search providers built in: `exa`, `firecrawl`, `parallel`, `tavily` and `tinyfish`. Outside that set, a much wider field of search APIs offers free quotas or free tiers — enough to run an agent's searches without paying for the privilege.
 
-This repository adds plugins for ten more of them, taking the pool from five providers to fifteen. AnySearch and Keenable run without a key at all; the other eight bind only when you supply one, so installing this package never routes a query to a provider that would immediately fail. Which of them are worth your time depends on the free tier each one currently offers, so check a provider's pricing before you rely on it.
+This repository adds plugins for eleven more of them, taking the pool from five providers to sixteen. AnySearch and Keenable run without a key at all; the other nine bind only when you supply one, so installing this package never routes a query to a provider that would immediately fail. Which of them are worth your time depends on the free tier each one currently offers, so check a provider's pricing before you rely on it.
 
 ## Install
 
-Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.0.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all ten); use the third for one or two files only.
+Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@2.0.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all eleven); use the third for one or two files only.
 
 ### 1. From npm (recommended)
 
@@ -67,7 +67,7 @@ For a location that is not auto-discovered, list it explicitly:
 
 ### Skip the services you have no key for
 
-Loading the package registers all ten, but a provider without a key never joins the search pool — see [Keys](#keys). To keep some out of the registry entirely, use either or both of these optional options:
+Loading the package registers all eleven, but a provider without a key never joins the search pool — see [Keys](#keys). To keep some out of the registry entirely, use either or both of these optional options:
 
 ```jsonc
 {
@@ -157,6 +157,7 @@ Every ID below carries an `osp-` prefix — this package's namespace. OpenCode's
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | yes | Free tier per IP; intent router, `cn`/`intl` zones |
 | Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | no | Independent index, 20 results max |
+| DeepSeek | `osp-deepseek` | `DEEPSEEK_API_KEY` | no | In-house index; $0.75 per 1,000 successful requests; 5 QPS cap |
 | Jina | `osp-jina` | `JINA_API_KEY` | no | Page content is opt-in because it is token-billed |
 | Keenable | `osp-keenable` | `KEENABLE_API_KEY` | yes | 100,000 requests a month with a key; keyless tier is per IP |
 | Linkup | `osp-linkup` | `LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
@@ -170,7 +171,7 @@ Every ID below carries an `osp-` prefix — this package's namespace. OpenCode's
 
 Knobs are environment variables, read once when OpenCode starts — change one and restart. Defaults match what each API documents, so leaving them unset is the right starting point.
 
-### Shared by all ten
+### Shared by all eleven
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -195,6 +196,12 @@ Knobs are environment variables, read once when OpenCode starts — change one a
 | `BRAVE_COUNTRY` | — | Two-letter country code, or `ALL` |
 | `BRAVE_LANG` | — | Result language, e.g. `en`, `zh-hans`, `pt-br` |
 | `BRAVE_FRESHNESS` | — | `pd` (24h), `pw` (7d), `pm` (31d), `py` (365d), or `YYYY-MM-DDtoYYYY-MM-DD` |
+
+### DeepSeek
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DEEPSEEK_COUNT` | `10` | Results per search, clamped to 1–50 (DeepSeek's maximum). Price is per request, so more results cost nothing extra |
 
 ### Jina
 

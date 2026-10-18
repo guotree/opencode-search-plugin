@@ -2,7 +2,7 @@
 
 # opencode-search-plugin
 
-十个相互独立的 [OpenCode](https://opencode.ai) v2 插件，各自注册一个网页搜索 provider。每个文件都能单独使用：复制一个进你的插件目录，或者安装这个包一次拿全十个。
+十一个相互独立的 [OpenCode](https://opencode.ai) v2 插件，各自注册一个网页搜索 provider。每个文件都能单独使用：复制一个进你的插件目录，或者安装这个包一次拿全十一个。
 
 [AnySearch](https://www.anysearch.com/) · [Brave Search](https://brave.com/search/api/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
@@ -10,11 +10,11 @@
 
 OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。在这个范围之外，还有大量搜索 API 提供免费额度或免费层级，足以支撑 agent 的日常检索而不必为此付费。
 
-本仓库为其中十家补上了插件，把可用池从五个 provider 扩到十五个。AnySearch 和 Keenable 无需任何 key 即可使用；其余八家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
+本仓库为其中十一家补上了插件，把可用池从五个 provider 扩到十六个。AnySearch 和 Keenable 无需任何 key 即可使用；其余九家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.0.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十个全有），只想用一两个就用第三种。
+三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@2.0.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十一个全有），只想用一两个就用第三种。
 
 ### 1. 从 npm 安装（推荐）
 
@@ -67,7 +67,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 ### 跳过你没有 key 的服务
 
-装包会注册全部十家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
+装包会注册全部十一家，但没有 key 的 provider 永远不会进入搜索池——见下文[密钥](#密钥)。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
 
 ```jsonc
 {
@@ -157,6 +157,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | --- | --- | --- | --- | --- |
 | AnySearch | `osp-anysearch` | `ANYSEARCH_API_KEY` | 是 | 按 IP 的免费额度；意图路由，`cn` / `intl` 分区 |
 | Brave Search | `osp-brave` | `BRAVE_SEARCH_API_KEY` | 否 | 独立索引，最多 20 条结果 |
+| DeepSeek | `osp-deepseek` | `DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
 | Jina | `osp-jina` | `JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不取 |
 | Keenable | `osp-keenable` | `KEENABLE_API_KEY` | 是 | 有 key 每月 100,000 次免费请求；无 key 层级按 IP 限速 |
 | Linkup | `osp-linkup` | `LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
@@ -170,7 +171,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 所有配置项都是环境变量，OpenCode 启动时读取一次——改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
 
-### 十家通用
+### 十一家通用
 
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -195,6 +196,12 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `BRAVE_COUNTRY` | — | 两位国家代码，或 `ALL` |
 | `BRAVE_LANG` | — | 结果语言，例如 `en`、`zh-hans`、`pt-br` |
 | `BRAVE_FRESHNESS` | — | `pd`（24 小时）、`pw`（7 天）、`pm`（31 天）、`py`（365 天），或 `YYYY-MM-DDtoYYYY-MM-DD` |
+
+### DeepSeek
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `DEEPSEEK_COUNT` | `10` | 每次搜索的结果数，限制在 1–50（DeepSeek 的上限）。按请求计费，条数增多不加价 |
 
 ### Jina
 

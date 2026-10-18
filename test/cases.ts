@@ -62,6 +62,25 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "deepseek-search",
+    pluginID: "deepseek-search",
+    providerID: "osp-deepseek",
+    displayName: "DeepSeek",
+    envKey: "DEEPSEEK_API_KEY",
+    response: {
+      results: [
+        {
+          title: "DeepSeek hit",
+          url: "https://example.com/deepseek",
+          summary: "DeepSeek summary",
+        },
+      ],
+    },
+    expected: [
+      { url: "https://example.com/deepseek", title: "DeepSeek hit", content: "DeepSeek summary" },
+    ],
+  },
+  {
     file: "jina-search",
     pluginID: "jina-search",
     providerID: "osp-jina",

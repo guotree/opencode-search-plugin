@@ -5,7 +5,7 @@
 Each provider is **one self-contained `.ts` file**, living in `plugins/`:
 
 ```text
-index.ts          package entrypoint; composes the ten providers
+index.ts          package entrypoint; composes the eleven providers
 plugins/          the providers, each one independently copyable
 test/             contract tests, harness, and structure guards
 scripts/          manual sync into a local OpenCode config
@@ -30,10 +30,10 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
-| `envInt` / `envStr` | all ten | Environment knobs read once at load time |
-| `cacheKey` / `readCache` / `writeCache` | all ten | Repeat queries are billed dispatches |
+| `envInt` / `envStr` | all eleven | Environment knobs read once at load time |
+| `cacheKey` / `readCache` / `writeCache` | all eleven | Repeat queries are billed dispatches |
 | `parseSearchDate` and its tables | brave, metaso, querit, serpapi, serper, youcom | Relative and absolute date shapes, plus the `Date.parse` trap |
-| `soften` | all ten | The host types the credential API's failure channel as `unknown` |
+| `soften` | all eleven | The host types the credential API's failure channel as `unknown` |
 
 Files with no date field (anysearch, jina, linkup) must not carry `parseSearchDate`. The structure test asserts that too.
 

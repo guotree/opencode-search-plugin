@@ -4,6 +4,7 @@ import type { Scope } from "effect"
 
 import { effect as anysearch } from "./plugins/anysearch-search"
 import { effect as brave } from "./plugins/brave-search"
+import { effect as deepseek } from "./plugins/deepseek-search"
 import { effect as jina } from "./plugins/jina-search"
 import { effect as keenable } from "./plugins/keenable-search"
 import { effect as linkup } from "./plugins/linkup-search"
@@ -16,7 +17,7 @@ import { effect as youcom } from "./plugins/youcom-search"
 type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 
 /**
- * The ten providers this package registers, in alphabetical order. Each entry
+ * The eleven providers this package registers, in alphabetical order. Each entry
  * is the same effect its standalone file uses as a default export, so a file
  * copied out of this repository behaves exactly as it does here.
  *
@@ -28,6 +29,7 @@ type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.
 const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
   ["osp-anysearch", anysearch],
   ["osp-brave", brave],
+  ["osp-deepseek", deepseek],
   ["osp-jina", jina],
   ["osp-keenable", keenable],
   ["osp-linkup", linkup],

@@ -70,6 +70,7 @@ const SOFTEN_BLOCK = `const soften = <A>(read: Effect.Effect<A, unknown>): Effec
 /** Files that carry a date field and must therefore share the date parser. */
 const WITH_DATES = [
   "brave-search",
+  "deepseek-search",
   "keenable-search",
   "metaso-search",
   "querit-search",
