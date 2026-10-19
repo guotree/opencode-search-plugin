@@ -380,6 +380,39 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "stepfun-search",
+    pluginID: "stepfun-search",
+    providerID: "osp-stepfun",
+    displayName: "StepFun Search",
+    envKey: "OSP_STEPFUN_API_KEY",
+    // The real envelope, straight from the API reference: `query` and
+    // `category` echo the request and `position` is the 1-based rank, none of
+    // which is read. The fixture carries no `time`: date parsing is shared
+    // byte-for-byte and exercised end-to-end through Brave. `content` is the
+    // full page body, and it is present in every response -- the mapping reads
+    // the snippet unless STEPFUN_INCLUDE_CONTENT asks otherwise.
+    response: {
+      query: "a query",
+      category: "",
+      results: [
+        {
+          url: "https://example.com/stepfun",
+          position: 1,
+          title: "StepFun hit",
+          snippet: "StepFun snippet",
+          content: "StepFun full page body",
+        },
+      ],
+    },
+    expected: [
+      {
+        url: "https://example.com/stepfun",
+        title: "StepFun hit",
+        content: "StepFun snippet",
+      },
+    ],
+  },
+  {
     file: "youcom-search",
     pluginID: "youcom-search",
     providerID: "osp-youcom",

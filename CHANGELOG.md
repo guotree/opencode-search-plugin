@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **StepFun** (`plugins/stepfun-search.ts`), the nineteenth provider, on
+  StepFun's (阶跃星辰) standalone web search API at
+  `POST api.stepfun.com/v1/search` (`osp-stepfun`, `OSP_STEPFUN_API_KEY`).
+  A bare retrieval endpoint -- `query`, `n`, and an optional `category`
+  in, `results[]` of `{url, position, title, time, snippet, content}` out --
+  with no model call in the loop, billed ¥0.04 per search. The endpoint has
+  no paging (`n` caps at 20), no time range, no domain filter and no
+  safe-search switch, so none of those is exposed; the four documented
+  scenario values (`programming`, `research`, `gov`, `business`) are the only
+  lever, and an unrecognised `STEPFUN_CATEGORY` is warned about and dropped
+  rather than sent to earn a 400. Every hit carries `content` -- the full
+  page body -- with no parameter to turn it off, so the snippet is read by
+  default and `STEPFUN_INCLUDE_CONTENT` opts into the body, cut to
+  `STEPFUN_CONTENT_CHARS` (4000) code points so no emoji is ever sliced in
+  half. `time` is the page's index time and is reported as `published`, the
+  only time field there is. The cn platform serves the only search endpoint
+  (`api.stepfun.ai/v1/search` answers 404 while its chat endpoint does not),
+  so there is no international twin to bind as a second provider. StepFun
+  publishes no "empty searches are free" rule, so every dispatch is assumed
+  billed and repeat queries ride the shared cache. Knobs: `STEPFUN_COUNT`
+  (1-20, default 10), `STEPFUN_CATEGORY`, `STEPFUN_INCLUDE_CONTENT`,
+  `STEPFUN_CONTENT_CHARS`. The 401/402/451/429 messages each carry the fix
+  they can act on (key console, top-up, rephrasing, waiting out the shared
+  rate-limit tier). Endpoint, schema and pricing read from the published
+  docs on 2026-10-19 (see `docs/research/stepfun-web-search.md`).
+
 ## [4.0.0] - 2026-10-19
 
 ### Added
