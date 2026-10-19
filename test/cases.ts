@@ -336,4 +336,37 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
       },
     ],
   },
+  {
+    file: "zhipu-search",
+    pluginID: "zhipu-search",
+    providerID: "osp-zhipu",
+    displayName: "Zhipu Search",
+    envKey: "OSP_ZHIPU_API_KEY",
+    // The real envelope, straight from the API reference: `id`/`created`/
+    // `request_id` ride along unread, `search_intent` echoes the rewrite the
+    // intent recogniser produced, and `media`/`icon`/`refer` sit on the hit
+    // next to the three fields mapped below. No `publish_date` -- date parsing
+    // is shared byte-for-byte and exercised end-to-end through Brave.
+    response: {
+      created: 1748261757,
+      id: "20250526201557dda85ca6801b467b",
+      request_id: "20250526201557dda85ca6801b467b",
+      search_intent: [
+        { intent: "SEARCH_ALL", keywords: "财经 新闻", query: "搜索财经新闻" },
+      ],
+      search_result: [
+        {
+          title: "Zhipu hit",
+          content: "Zhipu snippet",
+          link: "https://example.com/zhipu",
+          media: "示例网站",
+          icon: "https://example.com/favicon.ico",
+          refer: "ref_1",
+        },
+      ],
+    },
+    expected: [
+      { url: "https://example.com/zhipu", title: "Zhipu hit", content: "Zhipu snippet" },
+    ],
+  },
 ]

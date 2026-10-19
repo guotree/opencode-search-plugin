@@ -87,6 +87,7 @@ const WITH_DATES = [
   "serpapi-search",
   "serper-search",
   "youcom-search",
+  "zhipu-search",
 ]
 
 /**
@@ -114,6 +115,7 @@ const WITH_TIMEOUT = [
   "serpapi-search",
   "serper-search",
   "youcom-search",
+  "zhipu-search",
 ]
 
 describe("repository structure", () => {
