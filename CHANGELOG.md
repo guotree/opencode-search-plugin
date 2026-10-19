@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-19
+
+### Added
+
+- **Zhipu** (`plugins/zhipu-search.ts`), the fifteenth provider, on Zhipu's
+  standalone Web Search API at `POST open.bigmodel.cn/api/paas/v4/web_search`
+  (`osp-zhipu`, `OSP_ZHIPU_API_KEY`). This is a bare search endpoint -- the
+  request is `search_query` plus an engine, and the response is `search_result[]`
+  of `{title, content, link, media, icon, refer, publish_date}` -- so nothing
+  has to be untangled from a generated answer the way a chat-shaped API would
+  require. Billing is per search with no free tier (¥0.01 Search-Std, ¥0.03
+  Search-Pro, ¥0.05 Sogou/Quark, $0.01 on the international endpoint) and no
+  anonymous tier, so it binds only while a key exists and the shared cache is
+  what keeps repeat queries from being paid for twice. Two endpoints, two
+  account systems: `ZHIPU_SITE` picks `cn` (open.bigmodel.cn, default) or
+  `intl` (api.z.ai), which changes the default engine to `search-prime` and
+  drops the two request fields the intl spec does not document
+  (`search_intent`, `content_size`). `search_query` is cut to its 70-character
+  `maxLength` before dispatch, `count` is omitted on the Quark engine (whose
+  row leaves it out) and snapped to 10/20/30/40/50 on Sogou. Knobs:
+  `ZHIPU_COUNT`, `ZHIPU_ENGINE`, `ZHIPU_RECENCY`, `ZHIPU_CONTENT_SIZE`,
+  `ZHIPU_SITE`. The endpoint, request schema, response envelope and pricing
+  were read from the published OpenAPI specs and the docs' own examples on
+  2026-10-19 (see `docs/research/zhipu-search-api.md`); the refusal body for
+  this endpoint is undocumented, so errors are read for whichever of the
+  platform's shapes -- `{"error":{"code","message"}}` or a flat
+  `{"code","message"}` -- they actually arrive in.
+
 ## [3.2.0] - 2026-10-19
 
 ### Added
