@@ -206,6 +206,74 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "moonshot-cn-search",
+    pluginID: "moonshot-cn-search",
+    providerID: "osp-moonshot-cn",
+    displayName: "Moonshot CN Search",
+    envKey: "OSP_MOONSHOT_CN_API_KEY",
+    // The real envelope, straight from the API reference: `authority`,
+    // `icon`, `mime` and `site_name` ride along unread, and `text` reads as
+    // "" without include_content, leaving the snippet as the content. No
+    // `date` either: date parsing is shared byte-for-byte and exercised
+    // end-to-end through Brave.
+    response: {
+      search_results: [
+        {
+          authority: "S",
+          date: "",
+          icon: "https://example.com/favicon.ico",
+          mime: "text/html",
+          site_name: "Example Site",
+          snippet: "Moonshot CN snippet",
+          text: "",
+          title: "Moonshot CN hit",
+          url: "https://example.com/moonshot-cn",
+        },
+      ],
+    },
+    expected: [
+      {
+        url: "https://example.com/moonshot-cn",
+        title: "Moonshot CN hit",
+        content: "Moonshot CN snippet",
+      },
+    ],
+  },
+  {
+    file: "moonshot-search",
+    pluginID: "moonshot-search",
+    providerID: "osp-moonshot",
+    displayName: "Moonshot Search",
+    envKey: "OSP_MOONSHOT_API_KEY",
+    // The real envelope, straight from the API reference: `authority`,
+    // `icon`, `mime` and `site_name` ride along unread, and `text` reads as
+    // "" without include_content, leaving the snippet as the content. No
+    // `date` either: date parsing is shared byte-for-byte and exercised
+    // end-to-end through Brave.
+    response: {
+      search_results: [
+        {
+          authority: "S",
+          date: "",
+          icon: "https://example.com/favicon.ico",
+          mime: "text/html",
+          site_name: "Example Site",
+          snippet: "Moonshot snippet",
+          text: "",
+          title: "Moonshot hit",
+          url: "https://example.com/moonshot",
+        },
+      ],
+    },
+    expected: [
+      {
+        url: "https://example.com/moonshot",
+        title: "Moonshot hit",
+        content: "Moonshot snippet",
+      },
+    ],
+  },
+  {
     file: "ollama-search",
     pluginID: "ollama-search",
     providerID: "osp-ollama",

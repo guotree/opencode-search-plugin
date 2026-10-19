@@ -10,6 +10,8 @@ import { effect as jina } from "./plugins/jina-search"
 import { effect as keenable } from "./plugins/keenable-search"
 import { effect as linkup } from "./plugins/linkup-search"
 import { effect as metaso } from "./plugins/metaso-search"
+import { effect as moonshotcn } from "./plugins/moonshot-cn-search"
+import { effect as moonshot } from "./plugins/moonshot-search"
 import { effect as ollama } from "./plugins/ollama-search"
 import { effect as perplexity } from "./plugins/perplexity-search"
 import { effect as querit } from "./plugins/querit-search"
@@ -22,7 +24,7 @@ import { effect as zhipu } from "./plugins/zhipu-search"
 type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 
 /**
- * The sixteen providers this package registers, in alphabetical order. Each entry
+ * The eighteen providers this package registers, in alphabetical order. Each entry
  * is the same effect its standalone file uses as a default export, so a file
  * copied out of this repository behaves exactly as it does here.
  *
@@ -40,6 +42,8 @@ const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
   ["osp-keenable", keenable],
   ["osp-linkup", linkup],
   ["osp-metaso", metaso],
+  ["osp-moonshot", moonshot],
+  ["osp-moonshot-cn", moonshotcn],
   ["osp-ollama", ollama],
   ["osp-perplexity", perplexity],
   ["osp-querit", querit],

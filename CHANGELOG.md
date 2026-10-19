@@ -20,6 +20,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from being paid for twice. The intl spec publishes no `search_query`
   length ceiling (cn caps at 70 with `maxLength`), so the query is sent
   intact. Knobs: `ZAI_COUNT` (1–50), `ZAI_RECENCY`.
+- **Moonshot** (`plugins/moonshot-search.ts`), the seventeenth provider, on
+  Moonshot AI's (Kimi) international-site Basic search API at
+  `POST api.moonshot.ai/v1/tools/search` (`osp-moonshot`,
+  `OSP_MOONSHOT_API_KEY`). A bare search endpoint -- `text_query` plus
+  `limit` in, `search_results[]` of `{title, url, snippet, date, text,
+  authority, icon, mime, site_name}` out -- with no model call in the loop.
+  Billing is $0.002 per search and only when the response carries at least
+  one result (failed and empty searches are free), with no anonymous tier,
+  so it binds only while a key exists and the shared cache keeps repeat
+  queries from being dispatched twice. The Basic endpoint takes no paging,
+  site or time filter (`limit` caps at 20; those belong to the Pro endpoint,
+  which bills 50% more and returns relevance-scored `chunks`), so there is
+  deliberately no engine or filter knob. Knobs: `MOONSHOT_COUNT` (1–20,
+  default 5), `MOONSHOT_INCLUDE_CONTENT` (opt-in full-page `text` per hit).
+  The 401 and 403 messages carry the console fix and name the other site's
+  provider; the 429 turns `X-RateLimit-Reset` into a `retry in Ns` hint
+  alongside the recharge-tiered QPS note (1 QPS at Tier0, rising to 50).
+- **Moonshot CN** (`plugins/moonshot-cn-search.ts`), the eighteenth
+  provider, the China-site twin at `POST api.moonshot.cn/v1/tools/search`
+  (`osp-moonshot-cn`, `OSP_MOONSHOT_CN_API_KEY`). Same request, mapping and
+  filter story as the international site, in renminbi (¥0.01 per successful
+  search). The two are separate account systems issuing keys from separate
+  consoles -- platform.kimi.ai and platform.kimi.com -- so each site is its
+  own provider rather than one provider with a site knob that could aim a
+  key at the wrong host, mirroring the Zhipu cn/intl split. Knobs:
+  `MOONSHOT_CN_COUNT`, `MOONSHOT_CN_INCLUDE_CONTENT`. Endpoint, schema and
+  pricing read from the published docs on 2026-10-19 (see
+  `docs/research/kimi-web-search.md`); the provider name follows the
+  models.dev / Mastra / OpenClaw convention of the bare name for the
+  international site and a `-cn` suffix for the China one.
 
 ### Changed
 

@@ -82,6 +82,8 @@ const WITH_DATES = [
   "deepseek-search",
   "keenable-search",
   "metaso-search",
+  "moonshot-cn-search",
+  "moonshot-search",
   "perplexity-search",
   "querit-search",
   "serpapi-search",
@@ -110,6 +112,8 @@ const WITH_TIMEOUT = [
   "keenable-search",
   "linkup-search",
   "metaso-search",
+  "moonshot-cn-search",
+  "moonshot-search",
   "ollama-search",
   "perplexity-search",
   "querit-search",
@@ -205,7 +209,7 @@ describe("repository structure", () => {
   })
 })
 
-/** `anysearch-search` -> `anysearch`, so the import binding reads as a name. */
+/** `anysearch-search` -> `anysearch`, `moonshot-cn-search` -> `moonshotcn`. */
 function safeName(file: string): string {
-  return file.replace(/-search$/, "")
+  return file.replace(/-search$/, "").replace(/-/g, "")
 }
