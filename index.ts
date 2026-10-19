@@ -11,6 +11,7 @@ import { effect as keenable } from "./plugins/keenable-search"
 import { effect as linkup } from "./plugins/linkup-search"
 import { effect as metaso } from "./plugins/metaso-search"
 import { effect as ollama } from "./plugins/ollama-search"
+import { effect as perplexity } from "./plugins/perplexity-search"
 import { effect as querit } from "./plugins/querit-search"
 import { effect as serpapi } from "./plugins/serpapi-search"
 import { effect as serper } from "./plugins/serper-search"
@@ -19,7 +20,7 @@ import { effect as youcom } from "./plugins/youcom-search"
 type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 
 /**
- * The thirteen providers this package registers, in alphabetical order. Each entry
+ * The fourteen providers this package registers, in alphabetical order. Each entry
  * is the same effect its standalone file uses as a default export, so a file
  * copied out of this repository behaves exactly as it does here.
  *
@@ -38,6 +39,7 @@ const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
   ["osp-linkup", linkup],
   ["osp-metaso", metaso],
   ["osp-ollama", ollama],
+  ["osp-perplexity", perplexity],
   ["osp-querit", querit],
   ["osp-serpapi", serpapi],
   ["osp-serper", serper],

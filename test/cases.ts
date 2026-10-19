@@ -226,6 +226,36 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "perplexity-search",
+    pluginID: "perplexity-search",
+    providerID: "osp-perplexity",
+    displayName: "Perplexity",
+    envKey: "OSP_PERPLEXITY_API_KEY",
+    // The real envelope: `id` is required by the spec and `server_time` shows
+    // up null in the quickstart's own examples. Neither is read, so both must
+    // decode as passengers rather than as unknown keys that fail the schema.
+    // `date`/`last_updated` stay out of the fixture -- date parsing is shared
+    // and exercised end-to-end through Brave, as it is for every other provider.
+    response: {
+      results: [
+        {
+          title: "Perplexity hit",
+          url: "https://example.com/perplexity",
+          snippet: "Perplexity snippet",
+        },
+      ],
+      id: "e38104d5-6bd7-4d82-bc4e-0a21179d1f77",
+      server_time: null,
+    },
+    expected: [
+      {
+        url: "https://example.com/perplexity",
+        title: "Perplexity hit",
+        content: "Perplexity snippet",
+      },
+    ],
+  },
+  {
     file: "querit-search",
     pluginID: "querit-search",
     providerID: "osp-querit",
