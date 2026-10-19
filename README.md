@@ -36,7 +36,7 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 
 ## Supported providers
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## Why this exists
 
@@ -200,6 +200,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | no | Google via SerpApi; includes SerpApi's free 1-hour server-side cache |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
+| StepFun | `osp-stepfun` | `OSP_STEPFUN_API_KEY` | no | StepFun's cn platform (api.stepfun.com); standalone search endpoint, billed ¥0.04 per search; four scenario biases (`programming`, `research`, `gov`, `business`); no time, domain or paging filters, and every hit carries its full page body |
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | no | Combined web and news results; multiple extraction modes |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | no | Zhipu's international site (api.z.ai); standalone search endpoint, billed per search at $0.01 (Search-Prime); separate account system from Zhipu's cn site |
 | Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | no | Zhipu's cn site (open.bigmodel.cn); standalone search endpoint, no model call; billed per search from ¥0.01 (Search-Std), no free tier; four engines including Sogou and Quark |
@@ -349,6 +350,23 @@ There is intentionally no result-count configuration: Google deprecated the `num
 | `SERPER_GL` / `SERPER_HL` | — | Country / language code |
 | `SERPER_TBS` | — | Time filter: `qdr:h`, `qdr:d`, `qdr:w`, `qdr:m`, `qdr:y` |
 
+### StepFun
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `STEPFUN_COUNT` | `10` | Results per search, clamped to 1–20 (the API's range and default) |
+| `STEPFUN_CATEGORY` | — | Scenario bias: `programming`, `research`, `gov`, or `business`. Unset searches every scenario, which is the API's default; an unknown value is reported and dropped rather than sent to earn a 400 |
+| `STEPFUN_INCLUDE_CONTENT` | `off` | `true` returns each hit's full-page `content` instead of its snippet. The body is in every response either way — this only decides whether it is spent on context tokens |
+| `STEPFUN_CONTENT_CHARS` | `4000` | Code points kept from `content` when it is read (`0` keeps all of it). Counted in code points, so no emoji is ever cut in half |
+
+StepFun's cn platform ([platform.stepfun.com](https://platform.stepfun.com/interface-key)) serves the only search endpoint: `POST api.stepfun.com/v1/search`, billed ¥0.04 per search. The international host has no equivalent (`api.stepfun.ai/v1/search` answers 404 while its chat endpoint does not), so there is no second provider to bind — unlike Moonshot's two sites.
+
+The endpoint takes three parameters and nothing else: `query`, `n`, and `category`. There is no paging (`n`'s 20 is the whole reach of one call), no time range, no domain filter, and no safe-search switch, so a freshness or site filter has no lever here and is deliberately not exposed. `time` is the page's **index** time — when StepFun's crawler last saw it — not a publish date, and it is reported as `published` because it is the only time field there is.
+
+Every hit carries `content`, the full page body, with no parameter to turn it off. That is why the snippet is the default: the body is paid for on the wire regardless, but it need not be paid for again in context tokens. `STEPFUN_INCLUDE_CONTENT` opts into reading it, and `STEPFUN_CONTENT_CHARS` bounds it. A hit whose snippet is empty still falls back to the truncated body, since an empty string is not an answer worth handing the agent. StepFun publishes no "empty searches are free" rule (unlike Moonshot), so every dispatch is assumed billed and repeat queries ride the shared cache. There is also no search-specific quota in the docs — the account's recharge-tiered concurrency/RPM limits are what apply.
+
+The built-in `web_search` tool in Chat Completions is a different capability — the model decides whether to search, and the results are billed again as prompt tokens — and `step-5-preview` does not support it. This provider calls the standalone endpoint, which works with any model.
+
 ### You.com
 
 | Variable | Default | Description |
@@ -415,6 +433,10 @@ Common issues to check:
 - **Search fails with `Zhipu rate limited the request (HTTP 429)`**: Concurrent searches are capped per account, reported by the API as code 1701. Zhipu attaches a `retry after Ns` hint when it has one; waiting it out or running fewer searches at once clears the refusal.
 - **Search fails with `Moonshot rejected the API key (HTTP 401)` (or `Moonshot CN rejected...`)**: The key most likely belongs to Moonshot's other site. The international site ([platform.kimi.ai](https://platform.kimi.ai), provider `osp-moonshot`) and the cn site ([platform.kimi.com](https://platform.kimi.com), provider `osp-moonshot-cn`) issue keys from separate consoles. Use the provider whose site issued the key -- `osp-moonshot` for platform.kimi.ai keys, `osp-moonshot-cn` for platform.kimi.com keys -- or get a key from the console of the site you meant to search.
 - **Search fails with `Moonshot rate limited the search (HTTP 429)` (or `Moonshot CN rate limited...`)**: The search QPS cap is tiered by the account's cumulative recharge (1 QPS at Tier0, rising to 50). The error message includes a `retry in Ns` hint when the `X-RateLimit-Reset` header is present; waiting it out or running fewer searches at once clears the refusal.
+- **Search fails with `StepFun rejected the API key (HTTP 401)`**: `OSP_STEPFUN_API_KEY` must be a key from [platform.stepfun.com/interface-key](https://platform.stepfun.com/interface-key), and personal accounts must complete real-name verification before they can be billed. StepFun's international site issues no search endpoint, so there is no other site whose key could work here.
+- **Search fails with `StepFun balance is insufficient (HTTP 402)`**: The account has run out of credit; top up at [platform.stepfun.com](https://platform.stepfun.com). An organization project key reports the same status with an `insufficient_credit` type.
+- **Search fails with `StepFun refused the search on content review (HTTP 451)`**: Either the query or the pages it found tripped moderation. Rephrasing the query is the only lever; it is not a key or quota problem.
+- **StepFun results are short or cut off mid-sentence**: The page body is truncated to `STEPFUN_CONTENT_CHARS` (default 4000 code points) and ends with `…` when it was. Raise the limit, or leave `STEPFUN_INCLUDE_CONTENT` off to read the snippet instead.
 - **Search fails with `Connect X in /connect, or set OSP_X_API_KEY`**: The credentials were removed or became unavailable between provider registration and search execution. Reconfigure the key in `/connect` or export the environment variable.
 - **Search fails with `X search timed out after 25000ms`**: The upstream provider did not respond within the deadline. Retrying often succeeds. If a provider is consistently slow in your network environment, increase its `<PROVIDER>_TIMEOUT`. This deadline prevents a hanging upstream connection from blocking the entire session, as OpenCode does not enforce its own search timeout.
 - **Queries are slow or consuming excessive credits**: Keep `*_CACHE_TTL` at its default value. Identical queries within the cache TTL window are served from memory without network calls or credit consumption.

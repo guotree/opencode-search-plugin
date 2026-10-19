@@ -36,7 +36,7 @@ opencode plugin add opencode-search-plugin
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## 为什么做这个插件
 
@@ -200,6 +200,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | 否 | 摘要缺失时回退至句子级匹配 |
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；包含 SerpApi 自带的免费 1 小时服务端缓存 |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
+| StepFun | `osp-stepfun` | `OSP_STEPFUN_API_KEY` | 否 | 阶跃星辰国内站（api.stepfun.com）；独立搜索接口，每次 0.04 元；四种场景偏好（`programming`、`research`、`gov`、`business`）；不支持时间、域名与分页过滤，且每条结果都附带整页正文 |
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 否 | 网页与新闻结果合并；提供多种正文抽取模式 |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | 否 | 智谱国际站（api.z.ai）；独立搜索接口，按次计费，每次 0.01 美元（Search-Prime）；与国内站为相互独立的账号体系 |
 | Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | 否 | 智谱国内站（open.bigmodel.cn）；独立搜索接口，不经过模型调用；按次计费，Search-Std 每次 0.01 元起，无免费额度；四款引擎（含搜狗、夸克） |
@@ -349,6 +350,23 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | `SERPER_GL` / `SERPER_HL` | — | 国家 / 语言代码 |
 | `SERPER_TBS` | — | 时间筛选：`qdr:h`、`qdr:d`、`qdr:w`、`qdr:m`、`qdr:y` |
 
+### StepFun
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `STEPFUN_COUNT` | `10` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
+| `STEPFUN_CATEGORY` | — | 场景偏好：`programming`、`research`、`gov` 或 `business`。不设置时检索全部场景（API 默认行为）；填写未知值时会输出警告并丢弃，而不是发送出去换来一个 400 |
+| `STEPFUN_INCLUDE_CONTENT` | 关 | `true` 时返回每条结果的整页 `content` 正文而非摘要。正文无论如何都会随响应返回——此项只决定是否把它花在上下文 token 上 |
+| `STEPFUN_CONTENT_CHARS` | `4000` | 读取正文时保留的码点数（`0` 表示全部保留）。按码点计数，因此不会把 emoji 截成半个 |
+
+阶跃星辰只有国内站提供搜索接口：[platform.stepfun.com](https://platform.stepfun.com/interface-key) 的 `POST api.stepfun.com/v1/search`，每次 0.04 元。国际站没有对应接口（`api.stepfun.ai/v1/search` 返回 404，而其对话接口正常），因此不存在第二个可绑定的 provider——与月之暗面两站并存的情况不同。
+
+该接口只有三个参数：`query`、`n`、`category`。没有分页（`n` 的 20 条即单次调用的全部结果）、没有时间范围、没有域名过滤、也没有安全搜索开关，因此插件刻意不暴露时效或站点筛选——它们在这里没有可映射的落点。`time` 是页面的**索引时间**（阶跃爬虫最后一次看到该页的时间），而非发布时间；由于它是接口唯一的时间字段，映射时作为 `published` 输出。
+
+每条结果都带 `content` 整页正文，且没有参数可以关闭。这正是默认只读摘要的原因：正文无论如何都会在网络上被传输，但不必再被计入上下文 token。`STEPFUN_INCLUDE_CONTENT` 用于开启正文读取，`STEPFUN_CONTENT_CHARS` 负责截断。若某条结果的摘要为空，则回退到截断后的正文——空字符串不是值得交给 agent 的答案。阶跃文档没有「空结果不计费」的承诺（与月之暗面不同），因此按每次调用均计费处理，重复查询由共享缓存承接。文档中也没有搜索专用的配额——适用的是账号按累计充值分档的并发 / RPM 限制。
+
+Chat Completions 的内置 `web_search` 工具是另一种能力——由模型自行判断是否搜索，且搜索结果还会作为 prompt token 再次计费——且 `step-5-preview` 并不支持它。本 Provider 调用的是独立搜索接口，与使用哪个模型无关。
+
 ### You.com
 
 | 变量 | 默认值 | 说明 |
@@ -415,6 +433,10 @@ opencode api get "/api/websearch/provider"
 - **搜索报错 `Zhipu rate limited the request (HTTP 429)`**：智谱按账户限制并发搜索数，对应 API 错误码 1701。若错误信息中附带 `retry after Ns` 提示，等待该时间或减少并发搜索即可恢复。
 - **搜索报错 `Moonshot rejected the API key (HTTP 401)`（或 `Moonshot CN rejected...`）**：key 很可能来自月之暗面的另一个站点。国际站（[platform.kimi.ai](https://platform.kimi.ai)，provider `osp-moonshot`）与国内站（[platform.kimi.com](https://platform.kimi.com)，provider `osp-moonshot-cn`）在各自控制台签发密钥。请使用签发 key 所属站点对应的 provider——platform.kimi.ai 的 key 用 `osp-moonshot`，platform.kimi.com 的 key 用 `osp-moonshot-cn`——或前往目标站点的控制台获取密钥。
 - **搜索报错 `Moonshot rate limited the search (HTTP 429)`（或 `Moonshot CN rate limited...`）**：搜索接口的 QPS 按账户累计充值分档（Tier0 为 1 QPS，最高 50）。若错误信息附带 `retry in Ns` 提示（来自 `X-RateLimit-Reset` 响应头），等待该时间或减少并发搜索即可恢复。
+- **搜索报错 `StepFun rejected the API key (HTTP 401)`**：`OSP_STEPFUN_API_KEY` 必须是 [platform.stepfun.com/interface-key](https://platform.stepfun.com/interface-key) 签发的密钥，且个人账号需先完成实名认证才能付费调用。阶跃国际站不提供搜索接口，因此不存在「密钥来自另一个站点」这种情况。
+- **搜索报错 `StepFun balance is insufficient (HTTP 402)`**：账户余额不足，请前往 [platform.stepfun.com](https://platform.stepfun.com) 充值。组织项目密钥会以 `insufficient_credit` 类型报告同一状态。
+- **搜索报错 `StepFun refused the search on content review (HTTP 451)`**：查询词或其检索到的页面触发了内容审核。只能改写查询词；这不是密钥或配额问题。
+- **StepFun 返回的结果偏短或在句中截断**：正文被截断至 `STEPFUN_CONTENT_CHARS`（默认 4000 码点），截断时以 `…` 结尾。可提高该上限，或关闭 `STEPFUN_INCLUDE_CONTENT` 改为读取摘要。
 - **搜索报错 `Connect X in /connect, or set OSP_X_API_KEY`**：凭据在 provider 注册与实际调用之间失效或丢失。请重新在 `/connect` 中配置或重新导出环境变量。
 - **搜索报错 `X search timed out after 25000ms`**：上游服务在超时时限内未完成响应。通常重试即可恢复；若特定 provider 响应较慢，可提高对应的 `<PROVIDER>_TIMEOUT`。此限制是为防止无响应的上游服务导致整个会话永久阻塞（OpenCode 自身不对搜索设置超时限制）。
 - **搜索延迟高或配额消耗过快**：建议保留 `*_CACHE_TTL` 的默认值。在缓存窗口内的重复查询将直接由内存提供响应，不产生外部网络请求或费用。
