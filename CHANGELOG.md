@@ -6,6 +6,58 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-19
+
+### Added
+
+- **Perplexity** (`plugins/perplexity-search.ts`), the fourteenth provider, on
+  the Search API at `POST api.perplexity.ai/search` (`osp-perplexity`,
+  `OSP_PERPLEXITY_API_KEY`). This is the vendor's bare search endpoint --
+  `results[]` of `{title, url, snippet, date, last_updated}` and nothing else --
+  which is what makes it usable here at all: the Agent API (`/v1/agent`) answers
+  in prose and the Sonar chat-completions API it retired in September 2026
+  answered in prose plus citations, both of which would have to be stripped back
+  into links before an agent could read them. Billing is per successful request
+  ($5.00 per 1,000, $1.00 with `search_type: "fast"`), never per token, and
+  there is no anonymous tier -- an unauthenticated call answers `401
+  invalid_api_key` -- so it binds only while a key exists and the shared cache
+  is what keeps repeat queries from being paid for twice. `time.published` reads
+  `date`, falling back to `last_updated`: OpenCode's result carries one slot and
+  both are the page's own answer to "when is this from". Knobs:
+  `PERPLEXITY_MAX_RESULTS` (1–20, the web search ceiling -- above 20 the API
+  demands `search_type=people`), `PERPLEXITY_SEARCH_TYPE`, `PERPLEXITY_RECENCY`,
+  `PERPLEXITY_COUNTRY` and `PERPLEXITY_LANGUAGE`. Three of those are omitted
+  unless set, which is how this package honours an API default: `search_type`
+  stays unset so the documented `web` applies, and a documented-only value is
+  dropped rather than sent to fail as a `422`. `PERPLEXITY_LANGUAGE` sends at
+  most 10 codes because the spec allows 20 where the quickstart warns of 10.
+  The endpoint, the request schema, the response envelope and the 401 refusal
+  body were all read from the published OpenAPI spec and the docs' own examples
+  on 2026-10-19, because no key was available for a billed search: only the
+  unauthenticated refusal was exercised live.
+
+### Changed
+
+- **Both READMEs stopped naming a pinned version and a provider count.** Each
+  release had to bump the pin in the install examples and each new provider had
+  to bump every "thirteen providers" phrasing, so the cost of landing a change
+  landed on the change itself -- and a missed edit left the docs asserting a
+  number that was no longer true. The install examples now show `@<version>` /
+  `#v<version>` placeholders, and the counts read as "every provider" and "the
+  others". The provider table and the per-provider configuration tables are
+  untouched: those are the content the README exists to carry, and a new
+  provider still belongs in them.
+- **Both READMEs lead with the `random` pool.** The single-sentence tagline
+  became three bullets -- no key needed, safe to sit in OpenCode's `random`
+  pool, one command -- and the `websearch.provider` block moved out of Keys up
+  to a "Skip the provider prompt" section beside the install command, because
+  the first search otherwise prompts for a provider and that is the first thing
+  a new install hits. "Why another pack, when OpenCode already searches the
+  web?" answers the objection the old opening left unaddressed, and the claim
+  each bullet makes is the one this repository can actually back: a provider
+  registers only while it holds a credential, so `random` cannot be handed a
+  member that is guaranteed to fail.
+
 ## [3.1.0] - 2026-10-19
 
 ### Fixed
@@ -269,7 +321,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.2.0
 [3.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.1.0
 [3.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.0.0
 [2.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v2.2.0
