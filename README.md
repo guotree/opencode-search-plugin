@@ -36,7 +36,7 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 
 ## Supported providers
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Zhipu](https://bigmodel.cn/)
 
 ## Why this exists
 
@@ -199,6 +199,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | no | Google via SerpApi; includes SerpApi's free 1-hour server-side cache |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | no | Combined web and news results; multiple extraction modes |
+| Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | no | Standalone search endpoint, no model call; billed per search from ¥0.01 (Search-Std), no free tier; four engines including Sogou and Quark; `cn` / `intl` sites both supported |
 
 ## Configuration
 
@@ -328,6 +329,18 @@ There is intentionally no result-count configuration: Google deprecated the `num
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | Language / country code, e.g., `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | Freshness filter: `day`, `week`, `month`, `year`, or `YYYY-MM-DDtoYYYY-MM-DD` |
 
+### Zhipu
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ZHIPU_COUNT` | `10` | Results per search, clamped to 1–50 (Zhipu's maximum) |
+| `ZHIPU_ENGINE` | `search_std` | Search engine: `search_std` (¥0.01/search), `search_pro` (¥0.03, higher recall), `search_pro_sogou` / `search_pro_quark` (¥0.05 each). On `ZHIPU_SITE=intl` the only documented engine is `search-prime` ($0.01/search), which is also that site's default |
+| `ZHIPU_RECENCY` | — | Time filter: `oneDay`, `oneWeek`, `oneMonth`, `oneYear`, or `noLimit`. Omitting it leaves the API's `noLimit` default in place |
+| `ZHIPU_CONTENT_SIZE` | — | Excerpt length: `medium` (the API default) or `high`, which sends fuller excerpts at the same per-search price |
+| `ZHIPU_SITE` | `cn` | Endpoint: `cn` for `open.bigmodel.cn`, `intl` for `api.z.ai`. The two are separate account systems -- keys, engines and prices are not interchangeable |
+
+The default `search_std` is the cheapest engine; `search_pro` costs three times as much for higher recall, and the Sogou / Quark engines trade a higher price for their own source pools (Sogou covers the Tencent ecosystem and Zhihu; Quark skews recent). Every dispatch is billed -- there is no free tier -- so repeat queries ride the shared cache. Queries are cut to the API's 70-character `search_query` ceiling before dispatch, `count` is omitted on `search_pro_quark` (whose spec row leaves the field out), and on `search_pro_sogou` it is snapped to the nearest of 10/20/30/40/50.
+
 ## How a query flows
 
 1. OpenCode issues a search request to the active provider.
@@ -357,6 +370,8 @@ Common issues to check:
 - **Search fails with `Ollama API error 401`**: `OSP_OLLAMA_API_KEY` must be an ollama.com account key from [ollama.com/settings/keys](https://ollama.com/settings/keys). If your environment variable holds a bearer token for a local or custom Ollama proxy, configure the API key in `/connect` under **Ollama Search (osp)** instead, which takes precedence over the environment variable.
 - **Search fails with `Bocha balance is exhausted (HTTP 403)`**: The account balance is exhausted; recharge at [open.bocha.cn](https://open.bocha.cn). The error message includes Bocha's response message and a `log_id` for contacting support.
 - **Search fails with `Bocha rate limited the request (HTTP 429)`**: Bocha's per-account request limit scales with total recharge amount. When returned by Bocha, a `retry after Ns` hint is included in the error message.
+- **Search fails with `Zhipu rejected the API key (HTTP 401)`**: The key most likely belongs to the other site. The `cn` site ([open.bigmodel.cn](https://open.bigmodel.cn), `ZHIPU_SITE=cn`) and the `intl` site ([api.z.ai](https://api.z.ai), `ZHIPU_SITE=intl`) are separate account systems whose keys are not interchangeable. Set `ZHIPU_SITE` to match where the key was issued, or get a key from [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys).
+- **Search fails with `Zhipu rate limited the request (HTTP 429)`**: Concurrent searches are capped per account, reported by the API as code 1701. Zhipu attaches a `retry after Ns` hint when it has one; waiting it out or running fewer searches at once clears the refusal.
 - **Search fails with `Connect X in /connect, or set OSP_X_API_KEY`**: The credentials were removed or became unavailable between provider registration and search execution. Reconfigure the key in `/connect` or export the environment variable.
 - **Search fails with `X search timed out after 25000ms`**: The upstream provider did not respond within the deadline. Retrying often succeeds. If a provider is consistently slow in your network environment, increase its `<PROVIDER>_TIMEOUT`. This deadline prevents a hanging upstream connection from blocking the entire session, as OpenCode does not enforce its own search timeout.
 - **Queries are slow or consuming excessive credits**: Keep `*_CACHE_TTL` at its default value. Identical queries within the cache TTL window are served from memory without network calls or credit consumption.
