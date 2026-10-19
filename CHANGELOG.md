@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-19
+
 ### Added
 
 - **Z.ai** (`plugins/zai-search.ts`), the sixteenth provider, on Zhipu
@@ -410,7 +412,9 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.0.0
+[3.3.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.3.0
 [3.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.2.0
 [3.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.1.0
 [3.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.0.0
