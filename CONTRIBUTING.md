@@ -95,3 +95,32 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 ## Behaviour changes
 
 Open an issue before changing what a provider sends or how it maps a response. Caching, env knobs, and result counts are easy to adjust and easy to regress quietly; tests should move in the same commit.
+
+## Versioning
+
+The version lives in three places and they must agree: `package.json`, the
+top-level `version` in `package-lock.json`, and `version` under
+`packages[""]` in the same lockfile. `npm version` writes all three, so prefer
+it over editing by hand — a lockfile has many other `"version"` fields that
+belong to dependencies and must not be touched.
+
+Adding a provider is **not** a breaking change: it registers a new provider ID,
+leaves every existing ID and key variable alone, and a config that never names
+the new provider behaves exactly as before. So a provider lands in a **minor**
+bump, alongside any new knobs or endpoints for an existing provider.
+
+Reserve a **major** bump for a change an existing configuration cannot survive:
+
+| Change | Bump |
+| --- | --- |
+| New provider | minor |
+| New knob, new endpoint, new field in the mapping | minor |
+| Provider or plugin ID renamed | major |
+| Key variable renamed | major |
+| A provider split into two (one ID becomes two) | major |
+| A provider removed | major |
+
+The changelog records the reason, not the arithmetic: a major entry carries a
+`**Breaking:**` line naming what stops working, and a minor entry that adds a
+provider needs no such line. See the `2.0.0` (`osp-` prefix) and `3.0.0`
+(key-variable namespace) entries for what a real major looks like.
