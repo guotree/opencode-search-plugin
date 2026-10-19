@@ -36,7 +36,7 @@ opencode plugin add opencode-search-plugin
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## 为什么做这个插件
 
@@ -193,6 +193,8 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | 是 | 配置 key 每月享有 100,000 次免费请求；免 key 层级按 IP 限速 |
 | Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | 否 | 四档推理深度：`flash`、`fast`、`standard`、`deep` |
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数计费 |
+| Moonshot | `osp-moonshot` | `OSP_MOONSHOT_API_KEY` | 否 | 月之暗面国际站（api.moonshot.ai）；独立搜索接口，成功搜索每次 0.002 美元（失败或空结果不计费）；与国内站为相互独立的账号体系 |
+| Moonshot CN | `osp-moonshot-cn` | `OSP_MOONSHOT_CN_API_KEY` | 否 | 月之暗面国内站（api.moonshot.cn）；独立搜索接口，成功搜索每次 0.01 元（失败或空结果不计费）；与国际站为相互独立的账号体系 |
 | Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | 否 | 个人档免费；每条结果包含整页 markdown，上下文偏重；上限 10 条，且不带发布日期 |
 | Perplexity | `osp-perplexity` | `OSP_PERPLEXITY_API_KEY` | 否 | Search API 直接返回搜索结果，不包含生成的问答正文；按请求计费，每千次 5 美元，使用 `fast` 则为 1 美元 |
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | 否 | 摘要缺失时回退至句子级匹配 |
@@ -279,6 +281,32 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | --- | --- | --- |
 | `METASO_SEARCH_SIZE` | `20` | 每次搜索的结果数，限制在 1–100 |
 | `METASO_INCLUDE_RAW_CONTENT` | 关 | `true` 表示返回每条结果的完整原文；搜索费用不变，但会大幅消耗上下文 token |
+
+### Moonshot
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MOONSHOT_COUNT` | `5` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
+| `MOONSHOT_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要；搜索费用不变，但会大幅消耗上下文 token |
+
+此 Provider 为月之暗面国际站（[platform.kimi.ai](https://platform.kimi.ai)），密钥从 [platform.kimi.ai 控制台](https://platform.kimi.ai/console/api-keys) 获取，搜索端点为 `api.moonshot.ai/v1/tools/search`。每次成功搜索 0.002 美元，且仅当响应包含至少一条结果时计费——失败与空结果不计费，重复查询走共享缓存。无免 key 匿名层级，因此仅在配置了密钥时加入搜索池。
+
+该端点不支持分页、站点与时间过滤：`limit` 的 20 条即单次调用的全部结果，`sites` / `time_window` 属于 Pro 端点（价格高 50%，返回按相关性打分的 `chunks` 而非摘要），本 Provider 刻意不使用。查询词原样发送——规格未定义长度上限，且按原文检索、不改写。
+
+搜索接口按累计充值分档限制 QPS（Tier0 为 1 QPS，最高 50），与聊天接口的限速额度相互独立；返回 429 时错误信息会附带 `X-RateLimit-Reset` 推导出的 `retry in Ns` 提示。
+
+国内站（[platform.kimi.com](https://platform.kimi.com)）为独立账号体系、人民币计费，以独立 Provider 注册，即下表的 Moonshot CN（`osp-moonshot-cn`）。
+
+### Moonshot CN
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MOONSHOT_CN_COUNT` | `5` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
+| `MOONSHOT_CN_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要；搜索费用不变，但会大幅消耗上下文 token |
+
+此 Provider 为月之暗面国内站（[platform.kimi.com](https://platform.kimi.com)），密钥从 [platform.kimi.com 控制台](https://platform.kimi.com/console/api-keys) 获取，搜索端点为 `api.moonshot.cn/v1/tools/search`。每次成功搜索 0.01 元，且仅当响应包含至少一条结果时计费——失败与空结果不计费，重复查询走共享缓存。请求与映射逻辑与上节国际站完全一致，包括按累计充值分档的搜索 QPS（Tier0 为 1，最高 50）。
+
+国际站（[platform.kimi.ai](https://platform.kimi.ai)）为独立账号体系、美元计费，以独立 Provider 注册，即上表的 Moonshot（`osp-moonshot`）。
 
 ### Ollama
 
@@ -385,6 +413,8 @@ opencode api get "/api/websearch/provider"
 - **搜索报错 `Bocha rate limited the request (HTTP 429)`**：博查单账户请求上限与累计充值金额相关。若博查返回了 `Retry-After` 响应头，错误信息中会包含 `retry after Ns` 提示。
 - **搜索报错 `Zhipu rejected the API key (HTTP 401)`**：key 很可能来自智谱的另一个站点。国内站（[open.bigmodel.cn](https://open.bigmodel.cn)，provider `osp-zhipu`）与国际站（[api.z.ai](https://api.z.ai)，provider `osp-zai`）是相互独立的账号体系，密钥不通用。请使用签发 key 所属站点对应的 provider——bigmodel.cn 的 key 用 `osp-zhipu`，z.ai 的 key 用 `osp-zai`——或前往 [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取国内站密钥。
 - **搜索报错 `Zhipu rate limited the request (HTTP 429)`**：智谱按账户限制并发搜索数，对应 API 错误码 1701。若错误信息中附带 `retry after Ns` 提示，等待该时间或减少并发搜索即可恢复。
+- **搜索报错 `Moonshot rejected the API key (HTTP 401)`（或 `Moonshot CN rejected...`）**：key 很可能来自月之暗面的另一个站点。国际站（[platform.kimi.ai](https://platform.kimi.ai)，provider `osp-moonshot`）与国内站（[platform.kimi.com](https://platform.kimi.com)，provider `osp-moonshot-cn`）在各自控制台签发密钥。请使用签发 key 所属站点对应的 provider——platform.kimi.ai 的 key 用 `osp-moonshot`，platform.kimi.com 的 key 用 `osp-moonshot-cn`——或前往目标站点的控制台获取密钥。
+- **搜索报错 `Moonshot rate limited the search (HTTP 429)`（或 `Moonshot CN rate limited...`）**：搜索接口的 QPS 按账户累计充值分档（Tier0 为 1 QPS，最高 50）。若错误信息附带 `retry in Ns` 提示（来自 `X-RateLimit-Reset` 响应头），等待该时间或减少并发搜索即可恢复。
 - **搜索报错 `Connect X in /connect, or set OSP_X_API_KEY`**：凭据在 provider 注册与实际调用之间失效或丢失。请重新在 `/connect` 中配置或重新导出环境变量。
 - **搜索报错 `X search timed out after 25000ms`**：上游服务在超时时限内未完成响应。通常重试即可恢复；若特定 provider 响应较慢，可提高对应的 `<PROVIDER>_TIMEOUT`。此限制是为防止无响应的上游服务导致整个会话永久阻塞（OpenCode 自身不对搜索设置超时限制）。
 - **搜索延迟高或配额消耗过快**：建议保留 `*_CACHE_TTL` 的默认值。在缓存窗口内的重复查询将直接由内存提供响应，不产生外部网络请求或费用。
