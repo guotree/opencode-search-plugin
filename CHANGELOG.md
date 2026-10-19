@@ -6,6 +6,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Z.ai** (`plugins/zai-search.ts`), the sixteenth provider, on Zhipu
+  international site's standalone Web Search API at
+  `POST api.z.ai/api/paas/v4/web_search` (`osp-zai`, `OSP_ZAI_API_KEY`).
+  Same request and hit shape as the cn site, minus the two fields the intl
+  spec does not define (`search_intent`, `content_size`), and with
+  `search-prime` as the only engine -- the intl enum documents that one
+  value, so it is sent explicitly and there is no engine knob mirroring cn's
+  four. Billing is $0.01 per successful search with no free tier, so it
+  binds only while a key exists and the shared cache keeps repeat queries
+  from being paid for twice. The intl spec publishes no `search_query`
+  length ceiling (cn caps at 70 with `maxLength`), so the query is sent
+  intact. Knobs: `ZAI_COUNT` (1–50), `ZAI_RECENCY`.
+
+### Changed
+
+- **Breaking: the cn and intl sites of Zhipu's Web Search API are now two
+  providers.** `osp-zhipu` is the cn site only (`open.bigmodel.cn`, keys from
+  bigmodel.cn); the intl site (`api.z.ai`, keys from z.ai) is the new
+  `osp-zai` above. The two are separate account systems -- a key from one
+  answers HTTP 401 against the other, and the engines and prices differ --
+  so each now binds on its own credential instead of a `ZHIPU_SITE` knob
+  aiming one provider's key at either host. `ZHIPU_SITE` is no longer read.
+  Users who set `ZHIPU_SITE=intl` must move to `osp-zai` with `OSP_ZAI_API_KEY`
+  and the `ZAI_*` knobs; `osp-zhipu` credentials in `/connect` are
+  unaffected and keep working. Both 401 messages now name the other site's
+  provider, so a key on the wrong endpoint points at its fix. The cn-only
+  knobs (`ZHIPU_ENGINE`, `ZHIPU_CONTENT_SIZE`) are unchanged on `osp-zhipu`
+  and deliberately absent on `osp-zai`.
+
 ## [3.3.0] - 2026-10-19
 
 ### Added
@@ -349,7 +380,7 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v3.2.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v3.3.0...HEAD
 [3.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.2.0
 [3.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.1.0
 [3.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v3.0.0

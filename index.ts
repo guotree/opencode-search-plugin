@@ -16,12 +16,13 @@ import { effect as querit } from "./plugins/querit-search"
 import { effect as serpapi } from "./plugins/serpapi-search"
 import { effect as serper } from "./plugins/serper-search"
 import { effect as youcom } from "./plugins/youcom-search"
+import { effect as zai } from "./plugins/zai-search"
 import { effect as zhipu } from "./plugins/zhipu-search"
 
 type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 
 /**
- * The fifteen providers this package registers, in alphabetical order. Each entry
+ * The sixteen providers this package registers, in alphabetical order. Each entry
  * is the same effect its standalone file uses as a default export, so a file
  * copied out of this repository behaves exactly as it does here.
  *
@@ -45,6 +46,7 @@ const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
   ["osp-serpapi", serpapi],
   ["osp-serper", serper],
   ["osp-youcom", youcom],
+  ["osp-zai", zai],
   ["osp-zhipu", zhipu],
 ]
 

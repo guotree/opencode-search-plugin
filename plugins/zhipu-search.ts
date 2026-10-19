@@ -10,6 +10,12 @@ import { Effect, Schema, Stream } from "effect"
 // search list is only as good as its worst hit: all four decode as nullable
 // and a hit without a URL is dropped, so one malformed row cannot fail the
 // whole list.
+//
+// This file is the cn site only (open.bigmodel.cn). The international site
+// (api.z.ai) is a separate account system with separate keys and prices, so
+// it registers as its own provider in `zai-search.ts` rather than a site
+// knob here: a key from either site answers 401 against the other, and a
+// config default should never be able to aim a key at the wrong host.
 const ZhipuHit = Schema.Struct({
   title: Schema.optional(Schema.NullOr(Schema.String)),
   content: Schema.optional(Schema.NullOr(Schema.String)),
@@ -121,22 +127,19 @@ function toResult(item: {
 type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Zhipu bills per search -- ¥0.01 on Search-Std, ¥0.03 on Search-Pro, ¥0.05 on
-// the Sogou and Quark engines, $0.01 on the international endpoint -- with no
-// free tier and no anonymous tier, so a repeat query is a dispatch worth
-// skipping. Knobs are read once at load time, so restart after changing them.
+// the Sogou and Quark engines -- with no free tier and no anonymous tier, so a
+// repeat query is a dispatch worth skipping. Knobs are read once at load time,
+// so restart after changing them.
 //
 //   ZHIPU_CACHE_TTL     ms to reuse a response for the same query (0 disables)
 //   ZHIPU_COUNT         results per search, clamped to 1-50 (the API's range)
 //   ZHIPU_ENGINE        search_std (default, ¥0.01/search), search_pro (¥0.03,
 //                       higher recall), search_pro_sogou, search_pro_quark
-//                       (¥0.05 each); on ZHIPU_SITE=intl the only engine the
-//                       docs accept is search-prime
+//                       (¥0.05 each)
 //   ZHIPU_RECENCY       oneDay, oneWeek, oneMonth, oneYear, noLimit; unset
 //                       omits the parameter, which is the API's noLimit default
 //   ZHIPU_CONTENT_SIZE  medium or high; unset omits it (the API defaults to
 //                       medium). high sends fuller excerpts at the same price
-//   ZHIPU_SITE          cn (default) for open.bigmodel.cn, intl for api.z.ai --
-//                       separate accounts, keys and prices, not interchangeable
 //   ZHIPU_TIMEOUT       ms to wait before failing (0 removes the deadline)
 //   OSP_ZHIPU_API_KEY   required; from https://bigmodel.cn/usercenter/proj-mgmt/apikeys
 const CACHE_TTL = envInt("ZHIPU_CACHE_TTL", 600_000)
@@ -144,17 +147,11 @@ const CACHE_TTL = envInt("ZHIPU_CACHE_TTL", 600_000)
 // no deadline of its own around `execute`, so this is the only one that exists.
 const SEARCH_TIMEOUT = envInt("ZHIPU_TIMEOUT", 25_000)
 const COUNT = Math.min(Math.max(envInt("ZHIPU_COUNT", 10), 1), 50)
-const SITE = envStr("ZHIPU_SITE") === "intl" ? "intl" : "cn"
-const ENGINE = envStr("ZHIPU_ENGINE") || (SITE === "intl" ? "search-prime" : "search_std")
+const ENGINE = envStr("ZHIPU_ENGINE") || "search_std"
 const RECENCY = envStr("ZHIPU_RECENCY")
 const CONTENT_SIZE = envStr("ZHIPU_CONTENT_SIZE")
 
-// Two endpoints, two account systems: a cn key is not an intl key, and the
-// engine enums and prices differ with the host. The path is shared.
-const SEARCH_URL =
-  SITE === "intl"
-    ? "https://api.z.ai/api/paas/v4/web_search"
-    : "https://open.bigmodel.cn/api/paas/v4/web_search"
+const SEARCH_URL = "https://open.bigmodel.cn/api/paas/v4/web_search"
 
 // The spec caps `search_query` at 70 characters (`maxLength: 70`), so a longer
 // query is cut here rather than sent to fail as a 400. Cut by code point, so
@@ -318,11 +315,9 @@ export const effect = (ctx: Plugin.Context) =>
                     search_query: toSearchQuery(queryKey),
                     search_engine: ENGINE,
                     // Intent recognition rewrites a query into a search phrase;
-                    // the agent already writes one, and the cn endpoint marks
-                    // this field required with a documented default of `false`.
-                    // The intl endpoint documents no such field, so it never
-                    // crosses the site boundary.
-                    ...(SITE === "cn" ? { search_intent: false } : {}),
+                    // the agent already writes one, and the spec marks this
+                    // field required with a documented default of `false`.
+                    search_intent: false,
                     // Omitted where the engine's own docs leave `count` out
                     // (Quark), and snapped to Sogou's five accepted sizes.
                     ...(countFor(ENGINE, COUNT) === undefined
@@ -332,8 +327,8 @@ export const effect = (ctx: Plugin.Context) =>
                     // same thing, and noLimit is the documented default.
                     ...(RECENCY ? { search_recency_filter: RECENCY } : {}),
                     // Snippet length, not price -- `high` sends fuller excerpts
-                    // for the same per-search fee. cn-only, like `search_intent`.
-                    ...(SITE === "cn" && CONTENT_SIZE ? { content_size: CONTENT_SIZE } : {}),
+                    // for the same per-search fee.
+                    ...(CONTENT_SIZE ? { content_size: CONTENT_SIZE } : {}),
                   }),
                   signal: timedSignal(signal, SEARCH_TIMEOUT),
                 }),
@@ -360,7 +355,7 @@ export const effect = (ctx: Plugin.Context) =>
                   new Error(
                     "Zhipu rejected the API key (HTTP 401): " +
                       described +
-                      ". Connect Zhipu Search in /connect or set OSP_ZHIPU_API_KEY to a key from https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+                      ". Connect Zhipu Search in /connect or set OSP_ZHIPU_API_KEY to a key from https://bigmodel.cn/usercenter/proj-mgmt/apikeys. A key issued on z.ai belongs to Z.ai Search (osp-zai) instead",
                   ),
                 )
               }

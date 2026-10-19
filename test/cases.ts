@@ -337,6 +337,36 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "zai-search",
+    pluginID: "zai-search",
+    providerID: "osp-zai",
+    displayName: "Z.ai Search",
+    envKey: "OSP_ZAI_API_KEY",
+    // The real envelope, straight from the international site's guide: same
+    // hit shape as cn, with `id`/`created`/`request_id` riding along unread.
+    // No `search_intent` -- the intl spec does not define it. No
+    // `publish_date` either: date parsing is shared byte-for-byte and
+    // exercised end-to-end through Brave.
+    response: {
+      created: 1748261757,
+      id: "20250526201557dda85ca6801b467b",
+      request_id: "20250526201557dda85ca6801b467b",
+      search_result: [
+        {
+          title: "Z.ai hit",
+          content: "Z.ai snippet",
+          link: "https://example.com/zai",
+          media: "Example Site",
+          icon: "https://example.com/favicon.ico",
+          refer: "ref_1",
+        },
+      ],
+    },
+    expected: [
+      { url: "https://example.com/zai", title: "Z.ai hit", content: "Z.ai snippet" },
+    ],
+  },
+  {
     file: "zhipu-search",
     pluginID: "zhipu-search",
     providerID: "osp-zhipu",

@@ -5,7 +5,7 @@
 Each provider is **one self-contained `.ts` file**, living in `plugins/`:
 
 ```text
-index.ts          package entrypoint; composes the fifteen providers
+index.ts          package entrypoint; composes the sixteen providers
 plugins/          the providers, each one independently copyable
 test/             contract tests, harness, and structure guards
 scripts/          manual sync into a local OpenCode config
@@ -30,11 +30,11 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
-| `envInt` / `envStr` | all fifteen | Environment knobs read once at load time |
-| `cacheKey` / `readCache` / `writeCache` | all fifteen | Repeat queries are billed dispatches |
-| `timedSignal` | all fifteen | The host applies no deadline around `execute` |
-| `parseSearchDate` and its tables | bocha, brave, deepseek, keenable, metaso, perplexity, querit, serpapi, serper, youcom, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap |
-| `soften` | all fifteen | The host types the credential API's failure channel as `unknown` |
+| `envInt` / `envStr` | all sixteen | Environment knobs read once at load time |
+| `cacheKey` / `readCache` / `writeCache` | all sixteen | Repeat queries are billed dispatches |
+| `timedSignal` | all sixteen | The host applies no deadline around `execute` |
+| `parseSearchDate` and its tables | bocha, brave, deepseek, keenable, metaso, perplexity, querit, serpapi, serper, youcom, zai, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap |
+| `soften` | all sixteen | The host types the credential API's failure channel as `unknown` |
 
 Files with no date field (anysearch, jina, linkup, ollama) must not carry `parseSearchDate`. The structure test asserts that too.
 
@@ -77,7 +77,8 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | `test/keenable-search.test.ts` | Keyless routing between the public and keyed endpoints, and the 402/429 reports |
 | `test/ollama-search.test.ts` | Ollama's request body, the 1–10 clamp, and the flat-result mapping |
 | `test/perplexity-search.test.ts` | Perplexity's request body, the documented-only filters, date fallback from `last_updated`, and the 401 envelope |
-| `test/zhipu-search.test.ts` | Zhipu's request body per site and engine, the 70-character query cut, hit filtering, and the 401/429 reports |
+| `test/zai-search.test.ts` | Z.ai's request body, the fixed `search-prime` engine, hit filtering, and the 401/429 reports |
+| `test/zhipu-search.test.ts` | Zhipu's request body per engine, the 70-character query cut, hit filtering, and the 401/429 reports |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
 | `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |

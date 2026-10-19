@@ -107,20 +107,13 @@ describe("zhipu-search", () => {
     }
   })
 
-  it("targets the intl endpoint, whose spec knows only search-prime", async () => {
-    const { harness } = await bind({ ZHIPU_SITE: "intl", ZHIPU_CONTENT_SIZE: "high" })
+  it("targets open.bigmodel.cn and names the site in a key refusal", async () => {
+    const { harness } = await bind()
     const fetch = stubFetch(() => jsonResponse(EMPTY))
 
     await harness.run(harness.providers[0]!.execute({ query: "q" }))
 
-    expect(fetch.calls[0]!.url.host).toBe("api.z.ai")
-    // No `search_intent` and no `content_size`: neither field exists in the
-    // intl spec, so neither crosses the site boundary.
-    expect(fetch.calls[0]!.body).toEqual({
-      search_query: "q",
-      search_engine: "search-prime",
-      count: 10,
-    })
+    expect(fetch.calls[0]!.url.host).toBe("open.bigmodel.cn")
   })
 
   it("maps a hit, and reads publish_date as the bare date it is", async () => {

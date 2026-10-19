@@ -1,7 +1,7 @@
 {
   "name": "opencode-search-plugin",
   "version": "3.3.0",
-  "description": "Fifteen self-contained websearch provider plugins for OpenCode v2: AnySearch, Bocha, Brave, DeepSeek, Jina, Keenable, Linkup, Metaso, Ollama, Perplexity, Querit, SerpApi, Serper, You.com and Zhipu.",
+  "description": "Sixteen self-contained websearch provider plugins for OpenCode v2: AnySearch, Bocha, Brave, DeepSeek, Jina, Keenable, Linkup, Metaso, Ollama, Perplexity, Querit, SerpApi, Serper, You.com, Z.ai and Zhipu.",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -36,6 +36,7 @@
     "./serpapi-search": "./plugins/serpapi-search.ts",
     "./serper-search": "./plugins/serper-search.ts",
     "./youcom-search": "./plugins/youcom-search.ts",
+    "./zai-search": "./plugins/zai-search.ts",
     "./zhipu-search": "./plugins/zhipu-search.ts",
     "./package.json": "./package.json"
   },

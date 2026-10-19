@@ -36,7 +36,7 @@ opencode plugin add opencode-search-plugin
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## 为什么做这个插件
 
@@ -199,7 +199,8 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；包含 SerpApi 自带的免费 1 小时服务端缓存 |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 否 | 网页与新闻结果合并；提供多种正文抽取模式 |
-| Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | 否 | 独立搜索接口，不经过模型调用；按次计费，Search-Std 每次 0.01 元起，无免费额度；四款引擎（含搜狗、夸克）；支持 `cn` / `intl` 两站点 |
+| Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | 否 | 智谱国际站（api.z.ai）；独立搜索接口，按次计费，每次 0.01 美元（Search-Prime）；与国内站为相互独立的账号体系 |
+| Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | 否 | 智谱国内站（open.bigmodel.cn）；独立搜索接口，不经过模型调用；按次计费，Search-Std 每次 0.01 元起，无免费额度；四款引擎（含搜狗、夸克） |
 
 ## 配置
 
@@ -329,17 +330,29 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | 语言 / 国家代码，例如 `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | 时效筛选：`day`、`week`、`month`、`year` 或 `YYYY-MM-DDtoYYYY-MM-DD` |
 
+### Z.ai
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `ZAI_COUNT` | `10` | 每次搜索的结果数，限制在 1–50（API 上限） |
+| `ZAI_RECENCY` | — | 时间筛选：`oneDay`、`oneWeek`、`oneMonth`、`oneYear` 或 `noLimit`。不设置时保留 API 的 `noLimit` 默认行为 |
+
+国际站文档仅定义了 `search-prime`（0.01 美元/次）一款引擎，因此该值固定发送，不提供引擎配置项。每次调用均计费——没有免费额度——因此重复查询由共享缓存承接。与国内站不同，国际站文档未对查询长度设上限，查询将原样发送。
+
+Z.ai 是智谱的国际站，拥有独立的账号体系：密钥从 [z.ai](https://z.ai/manage-apikey/apikey-list) 获取，与国内站不通用。将国内站密钥用于此 provider 会返回 HTTP 401，错误信息中会指明这一点。
+
 ### Zhipu
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `ZHIPU_COUNT` | `10` | 每次搜索的结果数，限制在 1–50（Zhipu 的上限） |
-| `ZHIPU_ENGINE` | `search_std` | 搜索引擎：`search_std`（0.01 元/次）、`search_pro`（0.03 元/次，召回更高）、`search_pro_sogou` / `search_pro_quark`（0.05 元/次）。`ZHIPU_SITE=intl` 时文档仅接受 `search-prime`（0.01 美元/次），并以其为默认值 |
+| `ZHIPU_ENGINE` | `search_std` | 搜索引擎：`search_std`（0.01 元/次）、`search_pro`（0.03 元/次，召回更高）、`search_pro_sogou` / `search_pro_quark`（0.05 元/次） |
 | `ZHIPU_RECENCY` | — | 时间筛选：`oneDay`、`oneWeek`、`oneMonth`、`oneYear` 或 `noLimit`。不设置时保留 API 的 `noLimit` 默认行为 |
 | `ZHIPU_CONTENT_SIZE` | — | 摘要长度：`medium`（API 默认）或 `high`，在同样按次计费下返回更完整的摘要 |
-| `ZHIPU_SITE` | `cn` | 接口站点：`cn` 为 `open.bigmodel.cn`，`intl` 为 `api.z.ai`。两者是相互独立的账号体系，密钥、引擎与价格均不通用 |
 
 默认引擎 `search_std` 是价格最低的一档；`search_pro` 价格为其三倍，召回更高；搜狗 / 夸克引擎则以更高单价换取各自的信源池（搜狗覆盖腾讯生态与知乎内容，夸克偏重时效）。每次调用均计费——没有免费额度——因此重复查询由共享缓存承接。请求发出前会截断至 API `search_query` 的 70 字符上限；`count` 在 `search_pro_quark` 引擎上不发送（其文档未列出该字段），在 `search_pro_sogou` 上则取整到 10/20/30/40/50 之一。
+
+此处的 Zhipu 指国内站（[open.bigmodel.cn](https://open.bigmodel.cn)），密钥从 [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取。国际站（api.z.ai）为相互独立的账号体系，以独立 provider 形式注册，即上表的 Z.ai（`osp-zai`）。
 
 ## 查询处理流程
 
@@ -370,7 +383,7 @@ opencode api get "/api/websearch/provider"
 - **搜索报错 `Ollama API error 401`**：`OSP_OLLAMA_API_KEY` 必须是来自 [ollama.com/settings/keys](https://ollama.com/settings/keys) 的账户 API key。若环境变量中已配置用于 Ollama 兼容代理的 Bearer token，可在 `/connect` 中为 **Ollama Search (osp)** 配置专门的 API key，`/connect` 凭据优先级高于环境变量。
 - **搜索报错 `Bocha balance is exhausted (HTTP 403)`**：账户余额已耗尽，可前往 [open.bocha.cn](https://open.bocha.cn) 充值。错误信息包含博查返回的 `message` 文本与 `log_id`，联系客服时可作为凭证。
 - **搜索报错 `Bocha rate limited the request (HTTP 429)`**：博查单账户请求上限与累计充值金额相关。若博查返回了 `Retry-After` 响应头，错误信息中会包含 `retry after Ns` 提示。
-- **搜索报错 `Zhipu rejected the API key (HTTP 401)`**：key 很可能来自另一个站点。`cn` 站点（[open.bigmodel.cn](https://open.bigmodel.cn)，`ZHIPU_SITE=cn`）与 `intl` 站点（[api.z.ai](https://api.z.ai)，`ZHIPU_SITE=intl`）是相互独立的账号体系，密钥不通用。请将 `ZHIPU_SITE` 设置为签发 key 的站点，或前往 [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取密钥。
+- **搜索报错 `Zhipu rejected the API key (HTTP 401)`**：key 很可能来自智谱的另一个站点。国内站（[open.bigmodel.cn](https://open.bigmodel.cn)，provider `osp-zhipu`）与国际站（[api.z.ai](https://api.z.ai)，provider `osp-zai`）是相互独立的账号体系，密钥不通用。请使用签发 key 所属站点对应的 provider——bigmodel.cn 的 key 用 `osp-zhipu`，z.ai 的 key 用 `osp-zai`——或前往 [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取国内站密钥。
 - **搜索报错 `Zhipu rate limited the request (HTTP 429)`**：智谱按账户限制并发搜索数，对应 API 错误码 1701。若错误信息中附带 `retry after Ns` 提示，等待该时间或减少并发搜索即可恢复。
 - **搜索报错 `Connect X in /connect, or set OSP_X_API_KEY`**：凭据在 provider 注册与实际调用之间失效或丢失。请重新在 `/connect` 中配置或重新导出环境变量。
 - **搜索报错 `X search timed out after 25000ms`**：上游服务在超时时限内未完成响应。通常重试即可恢复；若特定 provider 响应较慢，可提高对应的 `<PROVIDER>_TIMEOUT`。此限制是为防止无响应的上游服务导致整个会话永久阻塞（OpenCode 自身不对搜索设置超时限制）。
