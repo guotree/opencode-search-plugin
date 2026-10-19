@@ -8,35 +8,54 @@
 
 **Web search for OpenCode that works out of the box, no API key needed.**
 
-One command adds thirteen search providers to OpenCode v2, growing the pool from five to eighteen. AnySearch and Keenable work with no setup at all; the other eleven only activate once you add a key.
+AnySearch and Keenable work with no configuration at all. Other providers only activate when you add an API key, so installing this plugin will not charge you for services you do not use.
+
+OpenCode selects providers using `random` mode: when one hits an HTTP 429 rate limit, it switches to the next available provider. Providers without keys are excluded from the pool, so `random` won't attempt to use an unconfigured service.
 
 ```sh
 opencode plugin add opencode-search-plugin
 ```
 
-Install it, then just ask OpenCode something that needs the web.
+Install the plugin, then ask OpenCode any question that requires a web search.
 
-<!-- TODO: replace this comment with a 10-second GIF once you record one:
-     ask a question → the websearch tool fires → results come back -->
+## Skip the provider prompt
 
-Thirteen providers in one package, use whichever you like:
+OpenCode asks to pick a search provider on your first search. You can set `websearch.provider` in your config to bypass this prompt:
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": { "provider": "random" }
+}
+```
+
+`"random"` uses one provider per session, and automatically falls back to another if it gets rate-limited. You can also pin a specific provider using its ID (like `"osp-brave"`), or disable search with `false`.
+
+<!-- TODO: replace this comment with a 10-second GIF:
+     set websearch.provider -> ask a question -> provider responds with sources -->
+
+## Supported providers
+
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## Why this exists
 
-OpenCode v2 ships with five web search providers built in: `exa`, `firecrawl`, `parallel`, `tavily` and `tinyfish`. Outside that set, a much wider field of search APIs offers free quotas or free tiers, enough to run an agent's searches without paying for the privilege.
+OpenCode v2 ships with built-in search providers: `exa`, `firecrawl`, `parallel`, `tavily`, and `tinyfish`. However, many external search APIs offer free tiers or generous free quotas.
 
-This repository adds plugins for thirteen more of them, taking the pool from five providers to eighteen. AnySearch and Keenable run without a key at all; the other eleven bind only when you supply one, so installing this package never routes a query to a provider that would immediately fail. Which of them are worth your time depends on the free tier each one currently offers, so check a provider's pricing before you rely on it.
+This plugin adds more providers to your pool:
+
+- AnySearch and Keenable work immediately without an API key or account.
+- Several providers offer free tiers, making it practical to maintain a backup pool.
+- OpenCode's `random` mode needs multiple providers to handle rate limits effectively. If one provider returns an HTTP 429, OpenCode retries with another.
 
 ## Install
 
-Three equivalent ways to install; pick one. **npm is recommended**: a version published to the registry is immutable, so a pinned `@3.1.0` always installs the same bytes, whereas a GitHub tag can in principle be moved by a maintainer to point at a different commit. The first two install the same complete package (all thirteen); use the third for one or two files only.
+Pick whichever installation method you prefer. **npm is recommended**: published versions are immutable, so pinning with `@<version>` always gets you the exact same build.
 
 ### 1. From npm (recommended)
 
 ```sh
-# add @3.1.0 to pin
+# add @<version> to pin
 opencode plugin add opencode-search-plugin
 ```
 
@@ -52,7 +71,7 @@ or declare it in `opencode.json(c)`:
 ### 2. From GitHub
 
 ```sh
-# add #v3.1.0 to pin
+# add #v<version> to pin
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -82,9 +101,9 @@ For a location that is not auto-discovered, list it explicitly:
 
 > Do not install the package *and* copy its files. Both register the same websearch provider IDs, so the pool would contain each service twice.
 
-### Skip the services you have no key for
+### Skip providers you don't use
 
-Loading the package registers all thirteen, but a provider without a key never joins the search pool; see [Keys](#keys). To keep some out of the registry entirely, use either or both of these optional options:
+Installing the package registers all providers, but any provider without an API key stays inactive; see [Keys](#keys). To exclude specific providers completely, use `disable` or `enable`:
 
 ```jsonc
 {
@@ -97,31 +116,23 @@ Loading the package registers all thirteen, but a provider without a key never j
 }
 ```
 
-- `disable` is a deny-list: it never registers the IDs it names (the provider IDs in the table below). AnySearch and Keenable need no key, so `disable` is the only way to keep those two out of the pool.
-- `enable` is an allow-list: only the IDs it names are registered, and everything else is skipped. `"enable": ["osp-brave", "osp-jina"]` runs those two alone.
+- `disable`: a deny-list of provider IDs (from the table below). Since AnySearch and Keenable require no key, `disable` is the only way to keep them out of the pool.
+- `enable`: an allow-list. Only the listed IDs are registered. For example, `"enable": ["osp-brave", "osp-jina"]` runs just those two.
 
-When both are set, **`disable` wins on any overlap**. A per-provider exclusion is never overridden by a bulk allow-list:
+If you specify both, **`disable` takes priority on any overlap**:
 
 ```jsonc
 {
   "options": {
     "enable": ["osp-brave", "osp-jina", "osp-serper"],
     "disable": ["osp-serper", "osp-youcom"]
-    // osp-serper stays out: disable overrides enable.
-    // osp-youcom was never allowed in; that entry is inert.
+    // osp-serper stays excluded: disable overrides enable.
+    // osp-youcom wasn't in enable, so this is safely ignored.
   }
 }
 ```
 
-Read as set arithmetic, the registered pool is `enable − disable`. The overlap drops out; a `disable` ID the allow-list never contained was never a candidate to begin with, redundant but harmless and unreported. The overlap is the only redundancy that earns a warning, and the log names the IDs in it.
-
-```text
-enable  = {osp-brave, osp-jina, osp-serper, osp-keenable, osp-linkup}
-disable = {osp-keenable, osp-linkup, osp-youcom}
-pool    =  osp-brave, osp-jina          -- enable minus disable
-```
-
-Configuration that cannot take effect is reported in the log rather than silently dropped: an ID this package does not register (a typo) is named, as is an option that is not an array. An `enable` list that ends up naming no known provider leaves the pool empty; the log says so.
+The active pool is simply `enable - disable`. Overlapping IDs are dropped, and invalid or unrecognized IDs trigger a warning in the logs rather than failing silently.
 
 ## Upgrade
 
@@ -134,7 +145,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form; naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one (`@3.1.0` on npm, `#v3.1.0` on GitHub) stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
+The target is the specifier that was configured: an npm install is named by its package name, a GitHub install answers only to its `github:` form; naming it by its bare package name fails with `Plugin is not configured`. Run `opencode plugin check` first to see what is outdated. An install without a pinned version follows new releases; a pinned one (`@<version>` on npm, `#v<version>` on GitHub) stays on its pin until you re-run `plugin add` with a newer pin or edit the specifier in `opencode.json(c)`. A locally copied file is upgraded by copying the new version over the old one.
 
 ## Uninstall
 
@@ -160,19 +171,13 @@ A provider with no key stays unbound: it is absent from the websearch pool, so `
 
 AnySearch and Keenable are the exceptions. Both have an anonymous tier, so they are always registered and only attach their credential header when a key exists. For Keenable the two tiers draw on separate budgets: a key spends the free allowance of 100,000 requests a month, while a keyless call goes to the `/public` endpoint instead and is metered by rate: 1,000 requests an hour and 10 a second per IP, on a pool shared with everyone else on your egress address. A key is what makes that shared headroom irrelevant.
 
-Once keys are in place, pick how OpenCode chooses among them:
-
-```jsonc
-{ "websearch": { "provider": "random" } }
-```
-
-`random` spreads queries across every bound provider. Set it to a specific ID such as `"osp-brave"` to pin one, or `false` to turn web search off.
+With keys in place, `websearch.provider` decides who answers: `"random"` spreads queries across every bound provider (set it once as in [Skip the provider prompt](#skip-the-provider-prompt)); a specific ID such as `"osp-brave"` pins one, and `false` turns web search off.
 
 ## Providers
 
-Every ID below carries an `osp-` prefix; it is this package's namespace. OpenCode's own providers register bare vendor names (`exa`, `tavily`), and a vendor's official plugin would do the same, so the prefix is what keeps those entries from colliding with ours, both in the websearch pool and in the `/connect` table, where credentials are keyed by integration ID. Use the prefixed form verbatim in `websearch.provider` and in `enable`/`disable`.
+Each ID below carries the `osp-` prefix to avoid colliding with OpenCode's built-in providers or official vendor plugins (which use bare names like `exa` or `tavily`). Use the prefixed ID in `websearch.provider` and in `enable`/`disable`.
 
-The namespace also shows on the display name: `/connect` lists each of this package's entries with an `(osp)` marker (`DeepSeek (osp)` beside a built-in `DeepSeek`), so a key saved here cannot be mistaken for a built-in provider's. The websearch pool keeps the plain provider name, since the pool holds only search providers and the collision does not exist there.
+In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suffix (e.g. `DeepSeek (osp)`) so you can tell them apart from built-in integrations. The search pool itself displays the clean provider name without the suffix.
 
 | Provider | ID | Key (env / `/connect`) | Anonymous | Notes |
 | --- | --- | --- | --- | --- |
@@ -185,6 +190,7 @@ The namespace also shows on the display name: `/connect` lists each of this pack
 | Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | no | `flash`/`fast`/`standard`/`deep` reasoning depth |
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | no | Billed per search, not per result |
 | Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | no | Free personal tier; each hit carries the full page as markdown, so results are context-heavy, capped at 10, and carry no dates |
+| Perplexity | `osp-perplexity` | `OSP_PERPLEXITY_API_KEY` | no | Search API returns bare results with no generated answer to strip; billed per request, $5.00 per 1,000 and $1.00 with `fast` |
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | no | Google via SerpApi; also has its own free 1-hour server cache |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
@@ -192,9 +198,9 @@ The namespace also shows on the display name: `/connect` lists each of this pack
 
 ## Configuration
 
-Knobs are environment variables, read once when OpenCode starts; change one and restart. Defaults match what each API documents, so leaving them unset is the right starting point.
+Configuration options are read as environment variables on startup. If you change a setting, restart OpenCode for it to take effect. The defaults reflect what each API recommends.
 
-### Shared by all thirteen
+### Shared by every provider
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -274,6 +280,18 @@ Knobs are environment variables, read once when OpenCode starts; change one and 
 | --- | --- | --- |
 | `OLLAMA_MAX_RESULTS` | `5` | Results per search, clamped to 1–10 (the API's maximum). `content` is a whole page of markdown rather than a snippet, so even the default 5 results run to thousands of characters of context |
 
+### Perplexity
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PERPLEXITY_MAX_RESULTS` | `10` | Results per search, clamped to 1–20. Web search tops out at 20; only `search_type=people` accepts up to 50 |
+| `PERPLEXITY_SEARCH_TYPE` | — | `web` (the API's own default, $5.00 per 1,000 requests), `fast` ($1.00, same response shape, lower latency) or `people`; unset omits the field |
+| `PERPLEXITY_RECENCY` | — | `hour`, `day`, `week`, `month`, or `year` |
+| `PERPLEXITY_COUNTRY` | — | Two-letter ISO 3166-1 country code, e.g. `US` |
+| `PERPLEXITY_LANGUAGE` | — | ISO 639-1 codes, comma-separated, e.g. `en,zh`. At most 10 are sent: the spec allows 20 where the quickstart warns of 10, and this honours the stricter of the two |
+
+There is deliberately no domain or source knob: the API has no news, Reddit or academic switch, and its docs reach those verticals through `search_domain_filter` allowlists, which is a per-query decision rather than an installation-wide one.
+
 ### Querit
 
 | Variable | Default | Meaning |
@@ -308,13 +326,13 @@ There is deliberately no result-count knob: Google withdrew the `num` parameter,
 
 ## How a query flows
 
-1. OpenCode asks the selected provider for the query.
-2. The normalized query (trimmed, whitespace collapsed) is checked against an in-memory cache. A hit returns immediately; repeat queries are free and instant.
-3. On a miss the key is resolved again, so a key rotated in `/connect` applies to the very next search.
-4. The request goes out under a deadline (`<PROVIDER>_TIMEOUT`, default 25s). OpenCode applies no timeout of its own around a search, so without this a provider that accepted the connection and then went silent would hang the whole turn. Failures surface the HTTP status and response body, or name the timeout when that is what happened.
-5. The response is schema-decoded, mapped to `{ url, title, content, time }`, and cached.
+1. OpenCode requests a search from the active provider.
+2. The normalized query (trimmed and whitespace-collapsed) is checked against an in-memory cache. Cache hits return immediately without making an API request.
+3. On a cache miss, the API key is resolved fresh, so rotated keys in `/connect` take effect right away.
+4. The request goes out with an abort deadline (`<PROVIDER>_TIMEOUT`, default 25s) to prevent stalled connections from hanging the session.
+5. The response is schema-validated, mapped to `{ url, title, content, time }`, and cached for repeat queries.
 
-Dates are parsed from relative phrases (`3 hours ago`, `3小时前`), absolute formats (`Sep 30, 2026`, `31 Mar 2026`), and ISO 8601. Strings whose lenient parsing would invent a wrong year (`Nov 1`, which `Date.parse` reads as 2001) are dropped rather than reported as a bogus timestamp.
+Relative dates (`3 hours ago`, `3小时前`), absolute dates (`Sep 30, 2026`, `31 Mar 2026`), and ISO 8601 timestamps are parsed automatically. Incomplete strings that might mislead lenient parsers (like `Nov 1`) are ignored instead of guessing an incorrect year.
 
 ## Troubleshooting
 

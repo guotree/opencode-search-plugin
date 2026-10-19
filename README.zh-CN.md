@@ -8,35 +8,54 @@
 
 **不用 API key，装上就能搜。**
 
-一条命令，给 OpenCode v2 加上十三个搜索 provider，搜索池从五家扩到十八家。AnySearch 和 Keenable 不用 key 直接能用；其余十一家等你配好 key 才会启用。
+AnySearch 和 Keenable 默认开箱即用，无需任何配置。其余 provider 只有在填入对应 API key 后才会激活，不用担心产生意外账单。
+
+配合 OpenCode 的 `random` 轮询模式，当某家遭遇 HTTP 429 限流时，会自动无缝切换至下一家可用服务。未配置 key 的 provider 不会进入候选池，彻底避免路由落空。
 
 ```sh
 opencode plugin add opencode-search-plugin
 ```
 
-装完就能问 OpenCode 需要联网的问题。
+装好后，直接向 OpenCode 提问即可联网检索。
 
-<!-- TODO: 录一段 10 秒 GIF 后替换本注释：
-     提问 → websearch 工具触发 → 结果返回 -->
+## 省掉选 provider 的弹窗
 
-十三个 provider 装一次全有，想用哪家用哪家：
+初次搜索时，OpenCode 默认会弹出提示让你挑选 provider。在配置文件中加上 `websearch.provider` 即可跳过询问：
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": { "provider": "random" }
+}
+```
+
+`"random"` 会在会话内固定使用同一家，遇到限流自动顺延换家。若想固定指定渠道，填写对应 ID 即可（如 `"osp-brave"`）；设为 `false` 则彻底停用联网搜索。
+
+<!-- TODO: 录一段 10 秒 GIF：
+     配置 websearch.provider -> 提问 -> provider 正常应答带引用 -->
+
+## 支持的渠道
+
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [You.com](https://you.com/)
 
 ## 为什么做这个插件
 
-OpenCode v2 内置了五个网页搜索 provider：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。在这个范围之外，还有大量搜索 API 提供免费额度或免费层级，足以支撑 agent 的日常检索而不必为此付费。
+OpenCode v2 本身内置了几个官方搜索渠道：`exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`。除此之外，市面上还有不少提供免费额度的搜索 API。
 
-本仓库为其中十三家补上了插件，把可用池从五个 provider 扩到十八个。AnySearch 和 Keenable 无需任何 key 即可使用；其余十一家只在你提供 key 之后才会绑定，因此装上这个包也不会把查询路由到一个注定失败的服务上。至于哪几家值得用，取决于它们各自当前的免费额度，长期依赖某家之前建议先确认它的定价。
+本插件为这些服务补齐了适配：
+
+- AnySearch 和 Keenable 支持免 key 匿名直接搜索。
+- 部分服务附带免费调用额度，便于低成本搭建备用轮询池。
+- 扩充 OpenCode `random` 模式的备选池。单家触发 HTTP 429 时，能够自动换家重试，降低搜索中断的几率。
 
 ## 安装
 
-三种方式等价，任选其一。**推荐 npm**：已发布到 registry 的版本不可变，固定 `@3.1.0` 后每次安装都拿到同一份字节；GitHub 的 tag 在理论上可以被维护者移动、指向别的 commit。前两种装的是同一个完整包（十三个全有），只想用一两个就用第三种。
+支持三种安装方式，选适合你的就行。**推荐 npm**：发布到 npm 的版本不可变，用 `@<version>` 锁定后始终能拿到一致的文件。
 
 ### 1. 从 npm 安装（推荐）
 
 ```sh
-# 追加 @3.1.0 可固定到该版本
+# 追加 @<version> 可固定到该版本
 opencode plugin add opencode-search-plugin
 ```
 
@@ -52,7 +71,7 @@ opencode plugin add opencode-search-plugin
 ### 2. 从 GitHub 安装
 
 ```sh
-# 追加 #v3.1.0 可固定到该 tag
+# 追加 #v<version> 可固定到该 tag
 opencode plugin add github:guotree/opencode-search-plugin
 ```
 
@@ -82,9 +101,9 @@ opencode plugin add github:guotree/opencode-search-plugin
 
 > **不要既装包、又复制它的文件。** 两者注册的是同一批 websearch provider ID，搜索池里每家服务会出现两次。
 
-### 跳过你没有 key 的服务
+### 过滤不需要的渠道
 
-装包会注册全部十三家，但没有 key 的 provider 永远不会进入搜索池（见下文[密钥](#密钥)）。想让它们连注册表都不出现，可以单独或同时使用下面两个可选选项：
+装包后所有 provider 都会注册，但没有配置 key 的渠道会保持未激活状态（见[密钥](#密钥)）。如果希望彻底排除某些渠道，可以使用 `disable` 或 `enable`：
 
 ```jsonc
 {
@@ -97,31 +116,23 @@ opencode plugin add github:guotree/opencode-search-plugin
 }
 ```
 
-- `disable` 是黑名单：它列出的 provider ID（见下文[支持的服务](#支持的服务)的表格）永远不会注册。AnySearch 和 Keenable 不需要 key，想把这两家也排除在搜索池之外，只能用 `disable`。
-- `enable` 是白名单：只注册列出的 ID，其余一律跳过；`"enable": ["osp-brave", "osp-jina"]` 只跑这两家。
+- `disable`：黑名单。AnySearch 和 Keenable 默认免 key，如果不想让它们进入搜索池，只能通过 `disable` 排除。
+- `enable`：白名单。只注册指定的渠道，例如 `"enable": ["osp-brave", "osp-jina"]` 仅保留这两家。
 
-两者同时配置时，**交集由 `disable` 胜出**：逐家的排除绝不会被批量白名单覆盖。
+如果两者同时配置，**`disable` 优先**：
 
 ```jsonc
 {
   "options": {
     "enable": ["osp-brave", "osp-jina", "osp-serper"],
     "disable": ["osp-serper", "osp-youcom"]
-    // osp-serper 仍然不注册：disable 压过 enable。
-    // osp-youcom 本来就不在白名单里，这条是冗余的。
+    // osp-serper 不会注册：disable 覆盖 enable。
+    // osp-youcom 本来就不在 enable 中，会被静默忽略。
   }
 }
 ```
 
-用集合运算来读：实际注册的池 = `enable − disable`。交集被剔除；`disable` 里不在 `enable` 中的 ID 从一开始就不在候选内，属于无害的冗余，不报警告。唯一会触发警告的冗余是交集，日志会点出其中的 ID。
-
-```text
-enable  = {osp-brave, osp-jina, osp-serper, osp-keenable, osp-linkup}
-disable = {osp-keenable, osp-linkup, osp-youcom}
-pool    =  osp-brave, osp-jina          -- enable 减 disable
-```
-
-无法生效的配置会在日志里提示，而不是被悄悄丢弃：写错的 ID（本包没注册的名字）会被点名，选项不是数组也会被点名。`enable` 如果最终一个已知 provider 都没匹配上，搜索池会是空的，日志里会写明这一点。
+实际生效的渠道等于 `enable - disable`。重叠项会被自动剔除；如果配置了不存在的 ID 或格式错误，日志会给出明确提示，不会静默失效。
 
 ## 升级
 
@@ -134,7 +145,7 @@ opencode plugin update github:guotree/opencode-search-plugin
 opencode plugin update
 ```
 
-升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式，用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的会停在原地（npm 形式是 `@3.1.0`，GitHub 形式是 `#v3.1.0`），直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件用新版本覆盖旧文件即可。
+升级目标用的是配置时的说明符：npm 安装用包名，GitHub 安装只认自己的 `github:` 形式，用裸包名会报 `Plugin is not configured`。先跑 `opencode plugin check` 查看有哪些过期。未固定版本的安装会跟上新版本；固定过的会停在原地（npm 形式是 `@<version>`，GitHub 形式是 `#v<version>`），直到你用新 pin 重新执行 `plugin add`，或直接修改 `opencode.json(c)` 里的说明符。本地复制的文件用新版本覆盖旧文件即可。
 
 ## 卸载
 
@@ -160,19 +171,13 @@ opencode plugin remove github:guotree/opencode-search-plugin
 
 AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册，只有存在 key 时才附带各自的凭据头。Keenable 的两层额度互不通用：有 key 时消耗每月 100,000 次的免费额度，无 key 的请求则改走 `/public` 端点，按速率限制：每个 IP 每小时 1,000 次、每秒 10 次，且与同一出口地址上的所有人共用。想摆脱这个共享池的不确定性，就得配一把 key。
 
-密钥就位后，再决定 OpenCode 如何在它们之间做选择：
-
-```jsonc
-{ "websearch": { "provider": "random" } }
-```
-
-`random` 会把查询分散到所有已绑定的 provider。填具体 ID（例如 `"osp-brave"`）则固定用某一家，填 `false` 则完全关闭网页搜索。
+密钥就位后，由 `websearch.provider` 决定谁来应答：`"random"` 会把查询分散到所有已绑定的 provider（按上文[省掉选 provider 的弹窗](#省掉选-provider-的弹窗)设一次即可），填具体 ID（例如 `"osp-brave"`）则固定用某一家，填 `false` 则完全关闭网页搜索。
 
 ## 支持的服务
 
-下表每个 ID 都带 `osp-` 前缀，这是本包的命名空间。OpenCode 内置 provider 用的是裸厂商名（`exa`、`tavily`），厂商自己的插件也会注册裸名（Keenable 就已经有一个），所以前缀是避免撞名的唯一保障：既避开搜索池里的重复，也避开 `/connect` 里按 integration ID 存凭据的那张表。在 `websearch.provider` 和 `enable`/`disable` 里请原样使用带前缀的 ID。
+下表中的 ID 均带有 `osp-` 前缀，用以避免与 OpenCode 内置渠道或官方插件命名冲突（它们使用的是 `exa`、`tavily` 这类直接名字）。在 `websearch.provider` 和 `enable`/`disable` 中请使用带前缀的完整 ID。
 
-命名空间同样体现在显示名上：`/connect` 里本包的每个条目都带 `(osp)` 标记（内置的 `DeepSeek` 旁边是 `DeepSeek (osp)`），存在这里的 key 不会和内置 provider 的混淆。搜索池里仍用纯品牌名，因为池中只有搜索 provider，不存在撞名问题。
+在 OpenCode 的 `/connect` 界面中，本插件的条目会带有 `(osp)` 后缀（如 `DeepSeek (osp)`），方便与内置同名服务区分。搜索池内部仍会使用干净的原始名称。
 
 | 服务 | ID | 密钥（环境变量 / `/connect`） | 匿名可用 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -185,6 +190,7 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | 否 | `flash` / `fast` / `standard` / `deep` 四档推理深度 |
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数 |
 | Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | 否 | 个人档免费；每条 content 是整页 markdown，上下文偏重；上限 10 条，且不带日期 |
+| Perplexity | `osp-perplexity` | `OSP_PERPLEXITY_API_KEY` | 否 | Search API 直接返回裸搜索结果，不夹带生成的问答正文；按请求计费，每千次 5 美元，用 `fast` 则 1 美元 |
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | 否 | 摘要缺失时回退到句子级匹配 |
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；另有其自带的免费 1 小时服务端缓存 |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
@@ -192,9 +198,9 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 
 ## 配置
 
-所有配置项都是环境变量，OpenCode 启动时读取一次，改了要重启。默认值取自各家 API 文档，所以一开始什么都不设就是合理的起点。
+配置项以环境变量形式在启动时加载。如修改了变量，重启 OpenCode 即可生效。默认值均对齐各家 API 文档推荐，通常保持默认即可。
 
-### 十三家通用
+### 所有 provider 通用
 
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -274,6 +280,18 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | --- | --- | --- |
 | `OLLAMA_MAX_RESULTS` | `5` | 每次搜索的结果数，限制在 1–10（API 的上限）。`content` 是整页 markdown 而非 snippet，即使默认 5 条也是数千字符的上下文 |
 
+### Perplexity
+
+| 变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `PERPLEXITY_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–20。网页搜索最多 20 条，只有 `search_type=people` 才接受到 50 条 |
+| `PERPLEXITY_SEARCH_TYPE` | — | `web`（API 自身的默认值，每千次 5 美元）、`fast`（1 美元，响应结构相同、延迟更低）或 `people`；不设即不传该字段 |
+| `PERPLEXITY_RECENCY` | — | `hour`、`day`、`week`、`month` 或 `year` |
+| `PERPLEXITY_COUNTRY` | — | 两位 ISO 3166-1 国家代码，例如 `US` |
+| `PERPLEXITY_LANGUAGE` | — | ISO 639-1 语言代码，用英文逗号分隔，例如 `en,zh`。最多只发 10 个：规范写的是 20，快速上手却提示 10，这里按两者中更严的那个来 |
+
+这里**刻意没有**域名或信源配置项：该 API 没有新闻、Reddit 或学术的独立开关，官方文档是靠 `search_domain_filter` 白名单去够到这些垂直领域的，而那是单次查询该决定的事，不是装完之后一锤定音的事。
+
 ### Querit
 
 | 变量 | 默认值 | 含义 |
@@ -306,15 +324,15 @@ AnySearch 和 Keenable 是例外。两家都有匿名层级，因此始终注册
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | 例如 `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | `day`、`week`、`month`、`year`，或 `YYYY-MM-DDtoYYYY-MM-DD` |
 
-## 一次查询的完整流程
+## 查询处理流程
 
-1. OpenCode 向选定的 provider 发起查询。
-2. 归一化后的查询（去首尾、压缩空白）先查内存缓存；命中则直接返回，重复查询免费且即时。
-3. 未命中时重新解析密钥，因此在 `/connect` 里轮换的 key 立即对下一次搜索生效。
-4. 发出请求，且带期限（`<PROVIDER>_TIMEOUT`，默认 25 秒）。OpenCode 自身并不给搜索加任何超时，所以没有这道期限的话，一个接受了连接却不再应答的 provider 会挂住整轮对话。失败时会带上 HTTP 状态码和响应体；如果是超时，报错会直接点明是超时。
-5. 响应经 schema 解码，映射为 `{ url, title, content, time }`，然后写入缓存。
+1. OpenCode 向当前分配的 provider 发起搜索。
+2. 归一化后的搜索词（去除首尾空白并合并多余空格）优先匹配内存缓存。命中的查询直接返回，不产生外部调用。
+3. 未命中缓存时，重新解析 API key，确保在 `/connect` 中轮换的密钥即时生效。
+4. 请求发出时附带超时截断（`<PROVIDER>_TIMEOUT`，默认 25s），避免上游无响应挂住会话。
+5. 返回的数据经过 schema 校验，映射为 `{ url, title, content, time }` 并写入缓存。
 
-日期解析支持相对表述（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601。凡是宽松解析会凭空造出错误年份的字符串（比如 `Nov 1`，`Date.parse` 会读成 2001 年）一律丢弃，而不是返回一个错误的时间戳。
+时间解析支持相对时间（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601。不完整的日期文本（如缺少年份的 `Nov 1`）会被直接忽略，避免宽容解析器推导错误年份。
 
 ## 排错
 
