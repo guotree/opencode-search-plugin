@@ -461,3 +461,7 @@ npm run check     # 类型检查 + 测试
 ## 许可证
 
 [MIT](LICENSE)
+
+## 友情链接
+
+- [LINUX DO](https://linux.do/) — the new ideal community

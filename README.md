@@ -461,3 +461,7 @@ Structure tests enforce that each plugin file remains independently copyable. Th
 ## License
 
 [MIT](LICENSE)
+
+## Friend Links
+
+- [LINUX DO](https://linux.do/) — the new ideal community
