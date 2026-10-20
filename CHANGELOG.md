@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+
+- `scripts/audit-readme.mjs` cross-checks both READMEs against the code:
+  config-table variables against each plugin's `envInt` / `envStr` knobs,
+  stated numeric defaults against the plugin's `envInt` fallback, the
+  provider table's ID / key / anonymous columns against `test/cases.ts`
+  and `KEYLESS`, the supported-providers link line, and EN/zh-CN section
+  and default-cell parity -- exiting non-zero on any mismatch. It was
+  written after a manual README-vs-reality audit of the Kagi provider
+  turned up three prose claims the upstream docs did not support, and is
+  wired into the "Adding a provider" checklist in `CONTRIBUTING.md`.
+
 ## [4.2.0] - 2026-10-20
 
 ### Added

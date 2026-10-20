@@ -62,8 +62,9 @@ The provider ID is the one that can collide with somebody else's, so it carries 
 3. Export both `effect` (so `index.ts` can compose it) and `default Plugin.define({ id: "<name>-search", effect })`.
 4. Add an entry to `PROVIDER_CASES` in `test/cases.ts` with a response body and the results it must map to.
 5. Add the import and the `["<name>", <name>]` tuple to `index.ts`.
-6. Add a row to the provider table and the configuration tables in `README.md`.
-7. `npm run check`.
+6. Add a row to the provider table and the configuration tables in `README.md`, and the same two tables in `README.zh-CN.md`.
+7. `node scripts/audit-readme.mjs` -- cross-checks both READMEs' tables, provider lists and env keys against the plugins and `test/cases.ts`, and exits non-zero on any mismatch.
+8. `npm run check`.
 
 Before inventing a query parameter, check the provider's own documentation. Two of these plugins shipped knobs that the upstream API silently ignores; `plugins/serpapi-search.ts` documents one such removal in a comment.
 
