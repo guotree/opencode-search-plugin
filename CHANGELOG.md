@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-10-20
+
 ### Added
 
 - **Kagi** (`plugins/kagi-search.ts`), the twentieth provider, on Kagi's v1
@@ -506,7 +508,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.1.1...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.2.0
 [4.1.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.1.1
 [4.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.1.0
 [4.0.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.0.0
