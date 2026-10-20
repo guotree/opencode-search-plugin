@@ -87,6 +87,32 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }`
 
+/**
+ * The credential-rebind subscription. Seventeen files carry it; the two
+ * keyless providers (anysearch, keenable) bind at startup and have no
+ * credential to rebind, so they must not subscribe at all.
+ */
+const EVENT_BLOCK = `    yield* Effect.forkScoped(
+      ctx.event.subscribe().pipe(
+        Stream.filter(
+          (event) =>
+            event.type === "credential.updated" ||
+            event.type === "credential.switched" ||
+            event.type === "integration.updated",
+        ),
+        Stream.mapEffect(() =>
+          Effect.gen(function* () {
+            const next = Boolean(yield* resolveKey())
+            if (next === bound) return
+            bound = next
+            yield* ctx.websearch.reload()
+          }),
+        ),
+        Stream.runDrain,
+      ),
+    )`
+
+/** Files that carry a date field and must therefore share the date parser. */
 /** Files that carry a date field and must therefore share the date parser. */
 const WITH_DATES = [
   "bocha-search",
@@ -137,6 +163,13 @@ const WITH_TIMEOUT = [
   "zai-search",
   "zhipu-search",
 ]
+
+/**
+ * Providers with an anonymous tier, which bind at startup and never rebind:
+ * there is no credential to change, so these files carry no event
+ * subscription. Mirrors `KEYLESS` in providers.test.ts.
+ */
+const KEYLESS = ["anysearch-search", "keenable-search"]
 
 describe("repository structure", () => {
   it("exposes every provider as a standalone file with no cross-file imports", () => {
@@ -197,6 +230,20 @@ describe("repository structure", () => {
       // The deadline must actually be applied, not merely defined.
       expect(source, `${file} applies the deadline`).toContain("signal: timedSignal(signal, ")
       expect(source, `${file} names its timeout`).toContain('_TIMEOUT", ')
+    }
+
+    // The rebind subscription binds every credentialed provider: the two
+    // keyless files have no credential, so they carry no subscription and
+    // the other seventeen must carry this exact block.
+    for (const { file } of PROVIDER_CASES) {
+      const source = providerSource(file)
+      if (KEYLESS.includes(file)) {
+        expect(source, `${file} is keyless and must not subscribe`).not.toContain(
+          "Effect.forkScoped",
+        )
+      } else {
+        expect(source, `${file} event subscription`).toContain(EVENT_BLOCK)
+      }
     }
 
     // Files without a date field must not carry a parser they never call.

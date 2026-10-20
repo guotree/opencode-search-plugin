@@ -31,10 +31,11 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
 | `envInt` / `envStr` | all nineteen | Environment knobs read once at load time |
-| `cacheKey` / `readCache` / `writeCache` | all nineteen | Repeat queries are billed dispatches |
+| `EMPTY_RESULT_TTL` / cache Map / `cacheKey` / `readCache` / `writeCache` | all nineteen | Repeat queries are billed dispatches; a hit refreshes recency, an empty result pins briefly |
 | `timedSignal` | all nineteen | The host applies no deadline around `execute` |
 | `parseSearchDate` and its tables | bocha, brave, deepseek, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, zai, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap |
 | `soften` | all nineteen | The host types the credential API's failure channel as `unknown` |
+| the `Effect.forkScoped` rebind subscription | all except anysearch, keenable | A rotated or deleted key must rebind the provider without a restart; the two keyless files bind at startup and never rebind |
 
 Files with no date field (anysearch, jina, linkup, ollama) must not carry `parseSearchDate`. The structure test asserts that too.
 

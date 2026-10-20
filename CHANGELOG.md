@@ -22,6 +22,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   single transient upstream wobble locked retries out for ten minutes; the
   pin is now `min(CACHE_TTL, EMPTY_RESULT_TTL)`.
 
+### Added
+
+- `test/cache.test.ts` covers the three cache branches that previously had
+  no tests at all: eviction (both that a hot query survives and that the
+  least recently used one is still spent), expiry (including
+  `CACHE_TTL=0`), and the empty-result pin.
+- `test/structure.test.ts` now asserts the `Effect.forkScoped` rebind
+  subscription byte-for-byte in the seventeen files that carry it, and
+  asserts the two keyless files (anysearch, keenable) carry no
+  subscription. This was the sixth shared block and the only one without
+  an assertion; `CONTRIBUTING.md`'s block table now lists it.
+
 ## [4.1.0] - 2026-10-19
 
 ### Added
