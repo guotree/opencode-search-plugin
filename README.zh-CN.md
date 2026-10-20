@@ -36,7 +36,7 @@ opencode plugin add opencode-search-plugin
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## 为什么做这个插件
 
@@ -190,6 +190,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | Brave Search | `osp-brave` | `OSP_BRAVE_API_KEY` | 否 | 独立索引，最多 20 条结果 |
 | DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
 | Jina | `osp-jina` | `OSP_JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不获取 |
+| Kagi | `osp-kagi` | `OSP_KAGI_API_KEY` | 否 | 订阅制无广告索引，支持 lens；每千次请求 12 美元，无免费额度 |
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | 是 | 配置 key 每月享有 100,000 次免费请求；免 key 层级按 IP 限速 |
 | Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | 否 | 四档推理深度：`flash`、`fast`、`standard`、`deep` |
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数计费 |
@@ -259,6 +260,17 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | `JINA_GL` / `JINA_HL` | — | 国家 / 语言代码 |
 | `JINA_LOCATION` | — | 模拟的城市级地理位置，例如 `Berlin` |
 | `JINA_TIMEOUT` | `25000`（开启 `JINA_INCLUDE_CONTENT` 时为 `60000`） | 请求超时毫秒数；整页抓取模式下使用更长的默认超时时间 |
+
+### Kagi
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `KAGI_NUM` | `8` | 每次搜索的结果数，限制在 1–1024（API 范围） |
+| `KAGI_LENS` | — | 应用的 lens：内置 lens 标识（`programming`、`forums`、`pdfs` 等），或从 [kagi.com/settings/lenses](https://kagi.com/settings/lenses) 获取的可分享 lens ID |
+| `KAGI_RECENT` | — | 时间筛选：`day`、`week` 或 `month`。以内联 lens 形式发送，因此设置了 `KAGI_LENS` 时被忽略；取值不在枚举内时报错并丢弃，而非发送后换来 400 |
+| `KAGI_REGION` | — | ISO 3166-1 alpha-2 区域代码，例如 `us`、`cn` |
+
+搜索走 Kagi v1 API（`POST kagi.com/api/v1/search`，密钥从 [kagi.com/api/keys](https://kagi.com/api/keys) 获取）。按量计费，每千次请求 12 美元，无免费额度、无匿名层级，因此每次请求都按计费处理，重复查询走共享缓存。请求会继承账号自身的设置——在 Kagi 网页端配置的屏蔽/置顶规则与摘要长度对 API 结果同样生效。`workflow` 固定为 `search`（网页结果）；图片、视频与新闻 workflow 返回的是其他结果集合，并非 agent 网页搜索所需。该端点也可在同一次请求内联抓取页面正文，但按 Extract API 单页价格另计费，因此本 Provider 不使用——统一映射 snippet。
 
 ### Keenable
 
@@ -437,6 +449,7 @@ opencode api get "/api/websearch/provider"
 - **搜索报错 `StepFun balance is insufficient (HTTP 402)`**：账户余额不足，请前往 [platform.stepfun.com](https://platform.stepfun.com) 充值。组织项目密钥会以 `insufficient_credit` 类型报告同一状态。
 - **搜索报错 `StepFun refused the search on content review (HTTP 451)`**：查询词或其检索到的页面触发了内容审核。只能改写查询词；这不是密钥或配额问题。
 - **StepFun 返回的结果偏短或在句中截断**：正文被截断至 `STEPFUN_CONTENT_CHARS`（默认 4000 码点），截断时以 `…` 结尾。可提高该上限，或关闭 `STEPFUN_INCLUDE_CONTENT` 改为读取摘要。
+- **搜索报错 `Kagi API error 401`**：`OSP_KAGI_API_KEY` 必须是来自 [kagi.com/api/keys](https://kagi.com/api/keys) 的 Kagi API key，创建时需绑定支付方式——v1 API 为按量付费、不发放免费额度，未绑定计费的 key 会在此失败。错误信息内嵌 Kagi 的响应体，其中的 `meta.trace` 即向 developers@kagi.com 反馈时需要提供的请求追踪 ID。
 - **搜索报错 `Connect X in /connect, or set OSP_X_API_KEY`**：凭据在 provider 注册与实际调用之间失效或丢失。请重新在 `/connect` 中配置或重新导出环境变量。
 - **搜索报错 `X search timed out after 25000ms`**：上游服务在超时时限内未完成响应。通常重试即可恢复；若特定 provider 响应较慢，可提高对应的 `<PROVIDER>_TIMEOUT`。此限制是为防止无响应的上游服务导致整个会话永久阻塞（OpenCode 自身不对搜索设置超时限制）。
 - **搜索延迟高或配额消耗过快**：建议保留 `*_CACHE_TTL` 的默认值。在缓存窗口内的重复查询将直接由内存提供响应，不产生外部网络请求或费用。

@@ -36,7 +36,7 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 
 ## Supported providers
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## Why this exists
 
@@ -190,6 +190,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | Brave Search | `osp-brave` | `OSP_BRAVE_API_KEY` | no | Independent index, 20 results max |
 | DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | no | In-house index; $0.75 per 1,000 successful requests; 5 QPS rate limit |
 | Jina | `osp-jina` | `OSP_JINA_API_KEY` | no | Full-page content is opt-in due to token-based billing |
+| Kagi | `osp-kagi` | `OSP_KAGI_API_KEY` | no | Ad-free subscription index with lenses; $12 per 1,000 requests, no free tier |
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | yes | 100,000 free requests/month with a key; keyless tier is rate-limited per IP |
 | Linkup | `osp-linkup` | `OSP_LINKUP_API_KEY` | no | Four reasoning depths: `flash`, `fast`, `standard`, `deep` |
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | no | Billed per search, not per result |
@@ -259,6 +260,17 @@ Configuration options are loaded as environment variables on startup. If you cha
 | `JINA_GL` / `JINA_HL` | — | Country / language code |
 | `JINA_LOCATION` | — | Simulated city-level location, e.g., `Berlin` |
 | `JINA_TIMEOUT` | `25000` (`60000` with `JINA_INCLUDE_CONTENT`) | Request timeout in milliseconds; full-page fetching uses a higher default timeout |
+
+### Kagi
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `KAGI_NUM` | `8` | Results per search, clamped to 1–1024 (the API's range) |
+| `KAGI_LENS` | — | Lens to apply: a built-in lens identifier (`programming`, `forums`, `pdfs`, ...) or a shareable lens ID from [kagi.com/settings/lenses](https://kagi.com/settings/lenses) |
+| `KAGI_RECENT` | — | Recency filter: `day`, `week`, or `month`. Sent as an inline lens, so it is ignored when `KAGI_LENS` is set; an unknown value is reported and dropped rather than sent to earn a 400 |
+| `KAGI_REGION` | — | ISO 3166-1 alpha-2 region code, e.g., `us`, `cn` |
+
+Searches run through Kagi's v1 API (`POST kagi.com/api/v1/search`, keys from [kagi.com/api/keys](https://kagi.com/api/keys)). Billing is $12 per 1,000 requests, pay-as-you-go with no free credit and no anonymous tier, so every dispatch is assumed billed and repeat queries ride the shared cache. The request inherits the account's own settings -- block/promote rules and snippet length set in Kagi apply to API results too. `workflow` is pinned to `search` (html pages); the images, videos and news workflows return other result collections and are not what an agent's web search wants. The endpoint can also inline page extraction in the same request, but that is billed per page at the Extract API's rate, so this provider never asks for it -- snippets are mapped instead.
 
 ### Keenable
 
@@ -437,6 +449,7 @@ Common issues to check:
 - **Search fails with `StepFun balance is insufficient (HTTP 402)`**: The account has run out of credit; top up at [platform.stepfun.com](https://platform.stepfun.com). An organization project key reports the same status with an `insufficient_credit` type.
 - **Search fails with `StepFun refused the search on content review (HTTP 451)`**: Either the query or the pages it found tripped moderation. Rephrasing the query is the only lever; it is not a key or quota problem.
 - **StepFun results are short or cut off mid-sentence**: The page body is truncated to `STEPFUN_CONTENT_CHARS` (default 4000 code points) and ends with `…` when it was. Raise the limit, or leave `STEPFUN_INCLUDE_CONTENT` off to read the snippet instead.
+- **Search fails with `Kagi API error 401`**: `OSP_KAGI_API_KEY` must be a Kagi API key from [kagi.com/api/keys](https://kagi.com/api/keys), which requires a payment method on file -- the v1 API is pay-as-you-go and issues no free credit, so a key created without billing fails here. The error message embeds Kagi's response body, whose `meta.trace` id is what developers@kagi.com asks for when debugging a request.
 - **Search fails with `Connect X in /connect, or set OSP_X_API_KEY`**: The credentials were removed or became unavailable between provider registration and search execution. Reconfigure the key in `/connect` or export the environment variable.
 - **Search fails with `X search timed out after 25000ms`**: The upstream provider did not respond within the deadline. Retrying often succeeds. If a provider is consistently slow in your network environment, increase its `<PROVIDER>_TIMEOUT`. This deadline prevents a hanging upstream connection from blocking the entire session, as OpenCode does not enforce its own search timeout.
 - **Queries are slow or consuming excessive credits**: Keep `*_CACHE_TTL` at its default value. Identical queries within the cache TTL window are served from memory without network calls or credit consumption.
