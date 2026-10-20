@@ -213,7 +213,7 @@ Configuration options are loaded as environment variables on startup. If you cha
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `<PROVIDER>_CACHE_TTL` | `600000` | Duration in milliseconds to reuse cached responses for identical normalized queries (`0` disables caching) |
+| `<PROVIDER>_CACHE_TTL` | `600000` | Duration in milliseconds to reuse cached responses for identical normalized queries (`0` disables caching). A hit refreshes the entry's recency so hot queries survive eviction; an empty result set is remembered for at most 30 seconds so a transient upstream wobble does not lock retries out for the full window |
 | `<PROVIDER>_TIMEOUT` | `25000` | Timeout in milliseconds before failing a request (`0` removes timeout while preserving cancellation) |
 
 ### AnySearch

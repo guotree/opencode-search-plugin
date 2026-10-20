@@ -27,19 +27,31 @@ const ENV_INT = `function envInt(name: string, fallback: number): number {
   return Number.isFinite(value) && value >= 0 ? value : fallback
 }`
 
-const CACHE_BLOCK = `function cacheKey(query: string): string {
+const CACHE_BLOCK = `const EMPTY_RESULT_TTL = 30_000
+const cache = new Map<string, { at: number; ttl: number; results: SearchResult[] }>()
+
+function cacheKey(query: string): string {
   return query.trim().replace(/\\s+/g, " ")
 }
 
 function readCache(queryKey: string): SearchResult[] | undefined {
   if (CACHE_TTL <= 0) return undefined
   const hit = cache.get(queryKey)
-  return hit && Date.now() - hit.at < CACHE_TTL ? hit.results : undefined
+  if (hit === undefined || Date.now() - hit.at >= hit.ttl) return undefined
+  // A hit moves the entry to the tail, so eviction spends the least
+  // recently used query rather than whichever one was searched first.
+  cache.delete(queryKey)
+  cache.set(queryKey, hit)
+  return hit.results
 }
 
 function writeCache(queryKey: string, results: SearchResult[]): void {
   if (CACHE_TTL <= 0) return
-  cache.set(queryKey, { at: Date.now(), results })
+  // A non-empty answer earns the full TTL; an empty one is pinned for the
+  // short beat above so a wobble upstream cannot lock retries out.
+  const ttl = results.length > 0 ? CACHE_TTL : Math.min(CACHE_TTL, EMPTY_RESULT_TTL)
+  cache.delete(queryKey) // a rewrite is a use: it belongs at the tail too
+  cache.set(queryKey, { at: Date.now(), ttl, results })
   if (cache.size > CACHE_LIMIT) {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)

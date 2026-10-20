@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The shared cache is now least-recently-used** (all nineteen providers).
+  Previously a cache hit returned early without touching the entry's
+  position, and a rewrite kept its old slot, so eviction always spent the
+  oldest-inserted query regardless of how often it was reused; any working
+  set larger than the 200-entry limit lost its hot queries. A hit now
+  moves the entry to the tail and a rewrite re-inserts at the tail, while
+  the expiry timestamp stays anchored to the fetch so a hot entry can
+  never outlive its own freshness bound.
+- **An empty result set is remembered for at most 30 seconds** instead of
+  the full `<PROVIDER>_CACHE_TTL` (all nineteen providers). An HTTP 200
+  with zero results is truthy and was cached like any other answer, so a
+  single transient upstream wobble locked retries out for ten minutes; the
+  pin is now `min(CACHE_TTL, EMPTY_RESULT_TTL)`.
+
 ## [4.1.0] - 2026-10-19
 
 ### Added
