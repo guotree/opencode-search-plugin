@@ -120,9 +120,9 @@ type SearchResult = ReturnType<typeof toResult>
 //   KAGI_NUM          results per search, clamped to 1-1024 (the API's range).
 //                     Kagi itself returns as many results as one pass can
 //                     gather; 8 matches this package's other providers
-//   KAGI_LENS         lens to apply: a built-in lens identifier (programming,
-//                     forums, pdfs...) or a shareable lens ID from
-//                     https://kagi.com/settings/lenses
+//   KAGI_LENS         lens to apply: the identifier of a built-in lens, or a
+//                     shareable lens ID (the ID portion of its URL, or the
+//                     full URL) from https://kagi.com/settings/lenses
 //   KAGI_RECENT       recency filter: day, week or month. Sent as an inline
 //                     lens, so it is ignored when KAGI_LENS is set; an unknown
 //                     value is reported and dropped rather than sent to earn a

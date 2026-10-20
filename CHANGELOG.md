@@ -18,8 +18,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   repeat queries ride the shared cache. The request sends `query`,
   `workflow: "search"` and `limit` (`KAGI_NUM`, clamped to the API's
   1-1024 range), and layers three documented filters on top: `lens_id`
-  (`KAGI_LENS` -- a built-in lens identifier such as `programming`, or a
-  shareable lens ID), an inline `lens: { time_relative }` (`KAGI_RECENT`,
+  (`KAGI_LENS` -- the identifier of a built-in lens, or a shareable lens
+  ID: the ID portion of its URL or the full URL), an inline
+  `lens: { time_relative }` (`KAGI_RECENT`,
   `day`/`week`/`month`; an unknown value is warned about and dropped rather
   than sent to earn a 400, and it is skipped entirely when `KAGI_LENS` is
   set, because two lenses at once is undefined by the spec), and
@@ -29,8 +30,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reported as `published`, so Kagi joins the date-carrying files that share
   `parseSearchDate`. The endpoint can inline Extract-API page fetches in
   the same request at per-page cost, so this provider never asks for them --
-  snippets are mapped instead. The request inherits the account's own Kagi
-  settings (block/promote rules, snippet length), and `workflow` stays
+  snippets are mapped instead. Account settings (block/promote rules,
+  snippet length) apply only when the key opts in via the API portal's
+  `Inherit account settings in API requests` option, and `workflow` stays
   `search` because the images, videos and news workflows return other
   result collections rather than html pages. Knobs: `KAGI_CACHE_TTL`,
   `KAGI_NUM`, `KAGI_LENS`, `KAGI_RECENT`, `KAGI_REGION`, `KAGI_TIMEOUT`.
