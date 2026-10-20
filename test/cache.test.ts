@@ -4,7 +4,7 @@ import type { Plugin } from "@opencode/plugin/effect"
 import { jsonResponse, loadPlugin, makeHarness, stubFetch } from "./harness"
 
 /**
- * The cache block is copied byte-for-byte into all nineteen provider files,
+ * The cache block is copied byte-for-byte into all twenty provider files,
  * so it is exercised here through Brave -- the same trick dates.test.ts uses
  * for the shared date parser. Three behaviors are pinned:
  *

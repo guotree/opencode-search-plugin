@@ -142,6 +142,35 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "kagi-search",
+    pluginID: "kagi-search",
+    providerID: "osp-kagi",
+    displayName: "Kagi",
+    envKey: "OSP_KAGI_API_KEY",
+    // The real envelope: `meta` is Kagi's documented debugging passenger, and
+    // the other `data` collections (news, images, infobox, related_search...)
+    // ride along unread -- only `data.search` is mapped. No `time` on the
+    // hit either: date parsing is shared byte-for-byte and exercised
+    // end-to-end through Brave, as it is for every other provider.
+    response: {
+      meta: { trace: "9f7c8b6a5d4e3f2a", node: "kagi-07", ms: 142 },
+      data: {
+        search: [
+          {
+            url: "https://example.com/kagi",
+            title: "Kagi hit",
+            snippet: "Kagi snippet",
+          },
+        ],
+        news: [],
+        related_search: [{ query: "a related query" }],
+      },
+    },
+    expected: [
+      { url: "https://example.com/kagi", title: "Kagi hit", content: "Kagi snippet" },
+    ],
+  },
+  {
     file: "keenable-search",
     pluginID: "keenable-search",
     providerID: "osp-keenable",

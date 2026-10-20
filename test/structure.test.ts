@@ -88,7 +88,7 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
 }`
 
 /**
- * The credential-rebind subscription. Seventeen files carry it; the two
+ * The credential-rebind subscription. Eighteen files carry it; the two
  * keyless providers (anysearch, keenable) bind at startup and have no
  * credential to rebind, so they must not subscribe at all.
  */
@@ -118,6 +118,7 @@ const WITH_DATES = [
   "bocha-search",
   "brave-search",
   "deepseek-search",
+  "kagi-search",
   "keenable-search",
   "metaso-search",
   "moonshot-cn-search",
@@ -148,6 +149,7 @@ const WITH_TIMEOUT = [
   "brave-search",
   "deepseek-search",
   "jina-search",
+  "kagi-search",
   "keenable-search",
   "linkup-search",
   "metaso-search",
@@ -234,7 +236,7 @@ describe("repository structure", () => {
 
     // The rebind subscription binds every credentialed provider: the two
     // keyless files have no credential, so they carry no subscription and
-    // the other seventeen must carry this exact block.
+    // the other eighteen must carry this exact block.
     for (const { file } of PROVIDER_CASES) {
       const source = providerSource(file)
       if (KEYLESS.includes(file)) {

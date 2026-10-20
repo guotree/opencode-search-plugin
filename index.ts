@@ -7,6 +7,7 @@ import { effect as bocha } from "./plugins/bocha-search"
 import { effect as brave } from "./plugins/brave-search"
 import { effect as deepseek } from "./plugins/deepseek-search"
 import { effect as jina } from "./plugins/jina-search"
+import { effect as kagi } from "./plugins/kagi-search"
 import { effect as keenable } from "./plugins/keenable-search"
 import { effect as linkup } from "./plugins/linkup-search"
 import { effect as metaso } from "./plugins/metaso-search"
@@ -25,7 +26,7 @@ import { effect as zhipu } from "./plugins/zhipu-search"
 type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 
 /**
- * The nineteen providers this package registers, in alphabetical order. Each entry
+ * The twenty providers this package registers, in alphabetical order. Each entry
  * is the same effect its standalone file uses as a default export, so a file
  * copied out of this repository behaves exactly as it does here.
  *
@@ -40,6 +41,7 @@ const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
   ["osp-brave", brave],
   ["osp-deepseek", deepseek],
   ["osp-jina", jina],
+  ["osp-kagi", kagi],
   ["osp-keenable", keenable],
   ["osp-linkup", linkup],
   ["osp-metaso", metaso],

@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Kagi** (`plugins/kagi-search.ts`), the twentieth provider, on Kagi's v1
+  Search API at `POST kagi.com/api/v1/search` (`osp-kagi`,
+  `OSP_KAGI_API_KEY`). Kagi is an ad-free, subscription-funded search engine
+  whose API is billed pay-as-you-go at $12 per 1,000 requests, with no free
+  credit and no anonymous tier -- so every dispatch is assumed billed and
+  repeat queries ride the shared cache. The request sends `query`,
+  `workflow: "search"` and `limit` (`KAGI_NUM`, clamped to the API's
+  1-1024 range), and layers three documented filters on top: `lens_id`
+  (`KAGI_LENS` -- a built-in lens identifier such as `programming`, or a
+  shareable lens ID), an inline `lens: { time_relative }` (`KAGI_RECENT`,
+  `day`/`week`/`month`; an unknown value is warned about and dropped rather
+  than sent to earn a 400, and it is skipped entirely when `KAGI_LENS` is
+  set, because two lenses at once is undefined by the spec), and
+  `filters.region` (`KAGI_REGION`). Only `data.search` maps to the agent:
+  the news, image, and other collections, plus the debugging `meta`, ride
+  along unread. `snippet` becomes `content` and `time` (ISO 8601) is
+  reported as `published`, so Kagi joins the date-carrying files that share
+  `parseSearchDate`. The endpoint can inline Extract-API page fetches in
+  the same request at per-page cost, so this provider never asks for them --
+  snippets are mapped instead. The request inherits the account's own Kagi
+  settings (block/promote rules, snippet length), and `workflow` stays
+  `search` because the images, videos and news workflows return other
+  result collections rather than html pages. Knobs: `KAGI_CACHE_TTL`,
+  `KAGI_NUM`, `KAGI_LENS`, `KAGI_RECENT`, `KAGI_REGION`, `KAGI_TIMEOUT`.
+- `test/kagi-search.test.ts` covers the request body, the three filter
+  knobs and the lens/recency precedence rule, the recency warning path, the
+  `data.search`-only mapping with `time` read as `published`, caching, the
+  timeout naming, and the 401 report. The contract cases,
+  structure guards (date parser, deadline, rebind subscription), README
+  tables in both languages, and `CONTRIBUTING.md`'s shared-block lists
+  count the new file alongside the other nineteen.
+
 ## [4.1.1] - 2026-10-20
 
 ### Fixed
