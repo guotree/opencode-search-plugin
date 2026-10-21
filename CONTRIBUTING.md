@@ -73,20 +73,29 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | File | Covers |
 | --- | --- |
 | `test/providers.test.ts` | The contract every provider must satisfy: binding, `/connect` wiring, mapping, caching, error status, request deadline, rebind |
+| `test/anysearch-search.test.ts` | AnySearch's anonymous binding and conditional Bearer header, the routing knobs, the FORMAT json-or-markdown rule, the 1-10 clamp, and the 402/HTTP/envelope reports |
 | `test/bocha-search.test.ts` | Bocha's request body and knobs, the `dateLastCrawled` UTC+8 rewrite, and the 401/403/429 reports |
 | `test/brave-search.test.ts` | Brave-specific request construction and env knobs |
+| `test/deepseek-search.test.ts` | DeepSeek's request body, the 1-50 count clamp, `summary`-to-content with its empty-string fallback, the `results` envelope, and the null date |
 | `test/jina-search.test.ts` | The one provider whose deadline default varies by mode |
 | `test/kagi-search.test.ts` | Kagi's request body and knobs, lens/recency precedence, the `data.search`-only mapping with `time` as published, and the 401 report |
 | `test/keenable-search.test.ts` | Keyless routing between the public and keyed endpoints, and the 402/429 reports |
+| `test/linkup-search.test.ts` | Linkup's request body, the 1-100 clamp, depth validation with its fallback, and the flatMap that drops image and URL-less hits |
+| `test/metaso-search.test.ts` | Metaso's request body, the always-present `includeRawContent` flag, the 1-100 size clamp, and the `webpages` envelope |
 | `test/moonshot-search.test.ts` | Moonshot's request body, the `include_content` opt-in, hit filtering, and the 401/403/429 reports |
 | `test/moonshot-cn-search.test.ts` | Moonshot CN's cn-host request body, long-query passthrough, and the cross-site 401 report |
-| `test/ollama-search.test.ts` | Ollama's request body, the 1–10 clamp, and the flat-result mapping |
+| `test/ollama-search.test.ts` | Ollama's request body, the 1-10 clamp, and the flat-result mapping |
 | `test/perplexity-search.test.ts` | Perplexity's request body, the documented-only filters, date fallback from `last_updated`, and the 401 envelope |
+| `test/querit-search.test.ts` | Querit's request body, the unclamped `QUERIT_COUNT` pass-through, the snippet/sentence content rule, and both error branches |
+| `test/serpapi-search.test.ts` | SerpApi's GET query construction, the GL/HL/TBS knobs, and the organic-results-only mapping |
+| `test/serper-search.test.ts` | Serper's POST body, the GL/HL/TBS filters riding in the body rather than the URL, the 1-100 clamp, and the organic-only mapping |
 | `test/stepfun-search.test.ts` | StepFun's request body and category validation, the snippet-by-default mapping, the code-point content cut, and the 401/402/451/429 reports |
+| `test/youcom-search.test.ts` | You.com's request body, the 1-100 count clamp, the extraction-mode shapes and fallback, and the web+news merge |
 | `test/zai-search.test.ts` | Z.ai's request body, the fixed `search-prime` engine, hit filtering, and the 401/429 reports |
 | `test/zhipu-search.test.ts` | Zhipu's request body per engine, the 70-character query cut, hit filtering, and the 401/429 reports |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
 | `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
+| `test/index-fault.test.ts` | The aggregate loop's fault isolation: a provider that dies or throws while registering is named on stderr while the other nineteen register, and an interruption still propagates |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |
 | `test/harness.ts` | The fake plugin context, credential sequences, fetch recorder |
 
