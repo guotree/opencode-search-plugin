@@ -25,8 +25,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   always-present `includeRawContent`) and its error branches in
   `test/<provider>-search.test.ts`.
 
+### Changed
+
+- Closed-set env knobs now report an unknown value instead of dropping
+  it silently, matching the warn-and-drop Kagi and StepFun already
+  document in both READMEs: `YOUCOM_EXTRACTION`, `LINKUP_DEPTH`,
+  `ANYSEARCH_FORMAT` and `ANYSEARCH_ZONE` -- the last of which
+  previously forwarded whatever it was given to the API, so a typo
+  failed every search instead of costing one knob. Both READMEs' config
+  rows name the behaviour.
+
 ### Fixed
 
+- SerpApi and Serper no longer let one malformed organic hit fail the
+  whole search. Both schemas now keep every result field optional as
+  their header comments always claimed, drop items without a link the
+  way querit and linkup already do, and a schema-level decode failure
+  carries the same `Invalid ... response` prefix as a JSON-parse
+  failure instead of surfacing as a raw decode dump.
 - A provider that fails while registering no longer takes the other
   nineteen down with it. The aggregate loop in `index.ts` suspends each
   registration call and recovers from defects with a one-line stderr
