@@ -134,7 +134,23 @@ export default Plugin.define({
       for (const [id, run] of PROVIDERS) {
         if (disabled.has(id)) continue
         if (allowed !== undefined && !allowed.has(id)) continue
-        yield* run(ctx)
+        // One provider's registration bug must not cost the user the other
+        // nineteen. A defect here is named on stderr and the loop moves on;
+        // an interruption is teardown rather than failure, and `catchDefect`
+        // propagates it untouched so shutdown never waits behind a warning.
+        // `suspend` wraps the call itself: a factory that throws before it
+        // returns an effect would otherwise reach this handler as a raw
+        // throw, outside any pipe it could be caught by.
+        yield* Effect.suspend(() => run(ctx)).pipe(
+          Effect.catchDefect((defect) =>
+            Effect.sync(() =>
+              console.warn(
+                `${WARNING} ${id} failed to register: ` +
+                  (defect instanceof Error ? defect.message : String(defect)),
+              ),
+            ),
+          ),
+        )
       }
     }),
 })
