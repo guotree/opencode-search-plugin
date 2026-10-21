@@ -67,6 +67,7 @@ describe("anysearch-search", () => {
   })
 
   it("sends markdown unless ANYSEARCH_FORMAT is exactly json", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const { harness } = await bindAnon({ ANYSEARCH_FORMAT: "yaml" })
 
     const fetch = stubFetch(() => jsonResponse({ code: 0 }))
@@ -75,6 +76,26 @@ describe("anysearch-search", () => {
     // The knob only recognises "json"; anything else is the default content
     // format rather than a value forwarded to an API that would reject it.
     expect((fetch.calls[0]!.body as { format: string }).format).toBe("markdown")
+    const messages = warn.mock.calls.map((call) => String(call[0]))
+    expect(
+      messages.some((m) => m.includes("ANYSEARCH_FORMAT") && m.includes('"yaml"')),
+    ).toBe(true)
+  })
+
+  it("warns and drops an ANYSEARCH_ZONE outside cn/intl instead of forwarding it", async () => {
+    // The zone is the one closed-set knob here that would otherwise ride
+    // along on every request: an unset zone is the API's own default.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { harness } = await bindAnon({ ANYSEARCH_ZONE: "us" })
+
+    const fetch = stubFetch(() => jsonResponse({ code: 0 }))
+    await harness.run(harness.providers[0]!.execute({ query: "q" }))
+
+    expect("zone" in (fetch.calls[0]!.body as object)).toBe(false)
+    const messages = warn.mock.calls.map((call) => String(call[0]))
+    expect(
+      messages.some((m) => m.includes("ANYSEARCH_ZONE") && m.includes('"us"')),
+    ).toBe(true)
   })
 
   it("clamps ANYSEARCH_MAX_RESULTS to the API's 1-10 range", async () => {

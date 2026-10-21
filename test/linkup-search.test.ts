@@ -66,14 +66,20 @@ describe("linkup-search", () => {
   })
 
   it("falls back to fast when LINKUP_DEPTH is not a depth the API defines", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const { harness } = await bind({ LINKUP_DEPTH: "turbo" })
     const fetch = stubFetch(() => jsonResponse({ results: [] }))
 
     await harness.run(harness.providers[0]!.execute({ query: "q" }))
 
     // An out-of-enum depth would be rejected upstream on every search, so
-    // the typo is replaced with the vendor's recommended default here.
+    // the typo is replaced with the vendor's recommended default -- and
+    // reported, so the user hears that the knob did not take.
     expect((fetch.calls[0]!.body as { depth: string }).depth).toBe("fast")
+    const messages = warn.mock.calls.map((call) => String(call[0]))
+    expect(
+      messages.some((m) => m.includes("LINKUP_DEPTH") && m.includes('"turbo"')),
+    ).toBe(true)
   })
 
   it("drops image results and any hit without a url on the way out", async () => {

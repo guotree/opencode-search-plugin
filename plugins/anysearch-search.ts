@@ -81,9 +81,35 @@ const CACHE_TTL = envInt("ANYSEARCH_CACHE_TTL", 600_000)
 const SEARCH_TIMEOUT = envInt("ANYSEARCH_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("ANYSEARCH_MAX_RESULTS", 10), 1), 10)
 const TAG = envStr("ANYSEARCH_TAG")
-const ZONE = envStr("ANYSEARCH_ZONE")
+const ZONE_VALUES = ["cn", "intl"]
+const ZONE_RAW = envStr("ANYSEARCH_ZONE")
+const ZONE = ZONE_VALUES.includes(ZONE_RAW) ? ZONE_RAW : ""
+if (ZONE_RAW !== "" && ZONE === "") {
+  // The zone is a closed set; without this guard a typo would ride along on
+  // every search instead of costing only the zone knob.
+  console.warn(
+    "[opencode-search-plugin] ANYSEARCH_ZONE " +
+      JSON.stringify(ZONE_RAW) +
+      " is not one of " +
+      ZONE_VALUES.join(", ") +
+      "; searching every zone instead",
+  )
+}
 const LANGUAGE = envStr("ANYSEARCH_LANGUAGE")
-const FORMAT = envStr("ANYSEARCH_FORMAT") === "json" ? "json" : "markdown"
+const FORMAT_VALUES = ["markdown", "json"]
+const FORMAT_RAW = envStr("ANYSEARCH_FORMAT")
+const FORMAT = FORMAT_RAW === "json" ? "json" : "markdown"
+if (FORMAT_RAW !== "" && !FORMAT_VALUES.includes(FORMAT_RAW)) {
+  // An unknown value is reported rather than dropped silently: a typo in a
+  // knob should cost that knob, and the user should hear about it.
+  console.warn(
+    "[opencode-search-plugin] ANYSEARCH_FORMAT " +
+      JSON.stringify(FORMAT_RAW) +
+      " is not one of " +
+      FORMAT_VALUES.join(", ") +
+      "; returning markdown instead",
+  )
+}
 
 const CACHE_LIMIT = 200
 // A transient upstream wobble can produce an empty answer, and locking

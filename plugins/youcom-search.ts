@@ -147,9 +147,20 @@ const CACHE_TTL = envInt("YOUCOM_CACHE_TTL", 600_000)
 // no deadline of its own around `execute`, so this is the only one that exists.
 const SEARCH_TIMEOUT = envInt("YOUCOM_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("YOUCOM_COUNT", 10), 1), 100)
-const EXTRACTION = ["none", "highlights", "full_page"].includes(envStr("YOUCOM_EXTRACTION"))
-  ? envStr("YOUCOM_EXTRACTION")
-  : "highlights"
+const EXTRACTION_VALUES = ["none", "highlights", "full_page"]
+const EXTRACTION_RAW = envStr("YOUCOM_EXTRACTION")
+const EXTRACTION = EXTRACTION_VALUES.includes(EXTRACTION_RAW) ? EXTRACTION_RAW : "highlights"
+if (EXTRACTION_RAW !== "" && !EXTRACTION_VALUES.includes(EXTRACTION_RAW)) {
+  // An unknown value is reported rather than dropped silently: a typo in a
+  // knob should cost that knob, and the user should hear about it.
+  console.warn(
+    "[opencode-search-plugin] YOUCOM_EXTRACTION " +
+      JSON.stringify(EXTRACTION_RAW) +
+      " is not one of " +
+      EXTRACTION_VALUES.join(", ") +
+      "; extracting highlights instead",
+  )
+}
 const LANGUAGE = envStr("YOUCOM_LANGUAGE")
 const COUNTRY = envStr("YOUCOM_COUNTRY")
 const FRESHNESS = envStr("YOUCOM_FRESHNESS")

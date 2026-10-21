@@ -93,8 +93,9 @@ describe("youcom-search", () => {
   })
 
   it("falls back to highlights when YOUCOM_EXTRACTION is not a known mode", async () => {
-    // An out-of-enum mode is a 400 on every search, so the typo degrades to
-    // the default here -- silently, unlike Kagi's warned filters.
+    // An out-of-enum mode is a rejected dispatch on every search, so the typo
+    // degrades to the default -- and says so, the way Kagi's warned filters do.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const { harness } = await bind({ YOUCOM_EXTRACTION: "highlight" })
     const fetch = stubFetch(() => jsonResponse(EMPTY))
 
@@ -105,6 +106,10 @@ describe("youcom-search", () => {
       count: 10,
       extraction: { extraction_mode: "highlights" },
     })
+    const messages = warn.mock.calls.map((call) => String(call[0]))
+    expect(
+      messages.some((m) => m.includes("YOUCOM_EXTRACTION") && m.includes("highlight")),
+    ).toBe(true)
   })
 
   it("merges web before news into one list, dropping url-less hits", async () => {

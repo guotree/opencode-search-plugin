@@ -223,9 +223,9 @@ Configuration options are loaded as environment variables on startup. If you cha
 | --- | --- | --- |
 | `ANYSEARCH_MAX_RESULTS` | `10` | Results per search, clamped to 1–10 |
 | `ANYSEARCH_TAG` | — | Pins the intent router to a sub-domain, e.g., `code.doc` |
-| `ANYSEARCH_ZONE` | — | Geographic zone: `cn` or `intl` |
+| `ANYSEARCH_ZONE` | — | Geographic zone: `cn` or `intl`; an unknown value is reported and dropped rather than silently ignored |
 | `ANYSEARCH_LANGUAGE` | — | Preferred result language, e.g., `zh-CN` |
-| `ANYSEARCH_FORMAT` | `markdown` | Content format: `markdown` or `json` |
+| `ANYSEARCH_FORMAT` | `markdown` | Content format: `markdown` or `json`; an unknown value is reported and dropped rather than silently ignored |
 | `OSP_ANYSEARCH_API_KEY` | — | Optional; anonymous access is used when omitted |
 
 ### Bocha
@@ -285,7 +285,7 @@ Searches run through Kagi's v1 API (`POST kagi.com/api/v1/search`, keys from [ka
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `LINKUP_DEPTH` | `fast` | Search depth: `flash`, `fast`, `standard`, or `deep` |
+| `LINKUP_DEPTH` | `fast` | Search depth: `flash`, `fast`, `standard`, or `deep`; an unknown value is reported and dropped rather than silently ignored |
 | `LINKUP_MAX_RESULTS` | `10` | Results per search, clamped to 1–100 |
 
 ### Metaso
@@ -384,7 +384,7 @@ The built-in `web_search` tool in Chat Completions is a different capability —
 | Variable | Default | Description |
 | --- | --- | --- |
 | `YOUCOM_COUNT` | `10` | Results per section (web and news each), clamped to 1–100 |
-| `YOUCOM_EXTRACTION` | `highlights` | Extraction mode: `highlights` returns answering passages, `none` returns raw snippets, and `full_page` fetches full pages and bills per fetched page |
+| `YOUCOM_EXTRACTION` | `highlights` | Extraction mode: `highlights` returns answering passages, `none` returns raw snippets, and `full_page` fetches full pages and bills per fetched page; an unknown value is reported and dropped rather than silently ignored |
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | Language / country code, e.g., `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | Freshness filter: `day`, `week`, `month`, `year`, or `YYYY-MM-DDtoYYYY-MM-DD` |
 

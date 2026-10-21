@@ -61,9 +61,20 @@ const CACHE_TTL = envInt("LINKUP_CACHE_TTL", 600_000)
 // no deadline of its own around `execute`, so this is the only one that exists.
 const SEARCH_TIMEOUT = envInt("LINKUP_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("LINKUP_MAX_RESULTS", 10), 1), 100)
-const DEPTH = ["flash", "fast", "standard", "deep"].includes(envStr("LINKUP_DEPTH"))
-  ? envStr("LINKUP_DEPTH")
-  : "fast"
+const DEPTH_VALUES = ["flash", "fast", "standard", "deep"]
+const DEPTH_RAW = envStr("LINKUP_DEPTH")
+const DEPTH = DEPTH_VALUES.includes(DEPTH_RAW) ? DEPTH_RAW : "fast"
+if (DEPTH_RAW !== "" && !DEPTH_VALUES.includes(DEPTH_RAW)) {
+  // An unknown value is reported rather than dropped silently: a typo in a
+  // knob should cost that knob, and the user should hear about it.
+  console.warn(
+    "[opencode-search-plugin] LINKUP_DEPTH " +
+      JSON.stringify(DEPTH_RAW) +
+      " is not one of " +
+      DEPTH_VALUES.join(", ") +
+      "; searching at the default depth instead",
+  )
+}
 
 const CACHE_LIMIT = 200
 // A transient upstream wobble can produce an empty answer, and locking

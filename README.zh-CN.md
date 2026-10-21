@@ -223,9 +223,9 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | --- | --- | --- |
 | `ANYSEARCH_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 API 允许的 1–10 |
 | `ANYSEARCH_TAG` | — | 固定意图路由的子领域，例如 `code.doc` |
-| `ANYSEARCH_ZONE` | — | 区域分区：`cn` 或 `intl` |
+| `ANYSEARCH_ZONE` | — | 区域分区：`cn` 或 `intl`；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `ANYSEARCH_LANGUAGE` | — | 首选结果语言，例如 `zh-CN` |
-| `ANYSEARCH_FORMAT` | `markdown` | `content` 字段格式：`markdown` 或 `json` |
+| `ANYSEARCH_FORMAT` | `markdown` | `content` 字段格式：`markdown` 或 `json`；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `OSP_ANYSEARCH_API_KEY` | — | 可选；未配置时使用免 key 匿名访问 |
 
 ### Bocha
@@ -285,7 +285,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `LINKUP_DEPTH` | `fast` | 推理深度：`flash`、`fast`、`standard` 或 `deep` |
+| `LINKUP_DEPTH` | `fast` | 推理深度：`flash`、`fast`、`standard` 或 `deep`；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `LINKUP_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–100 |
 
 ### Metaso
@@ -384,7 +384,7 @@ Chat Completions 的内置 `web_search` 工具是另一种能力——由模型�
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `YOUCOM_COUNT` | `10` | 每个分区（网页、新闻各自）的结果数，限制在 1–100 |
-| `YOUCOM_EXTRACTION` | `highlights` | 正文抽取模式：`highlights` 返回解答性段落，`none` 仅返回原始摘要，`full_page` 抓取完整页面并按抓取页数计费 |
+| `YOUCOM_EXTRACTION` | `highlights` | 正文抽取模式：`highlights` 返回解答性段落，`none` 仅返回原始摘要，`full_page` 抓取完整页面并按抓取页数计费；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | 语言 / 国家代码，例如 `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | 时效筛选：`day`、`week`、`month`、`year` 或 `YYYY-MM-DDtoYYYY-MM-DD` |
 
