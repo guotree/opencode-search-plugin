@@ -6,8 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [Unreleased]
-
 ### Added
 
 - `scripts/audit-readme.mjs` cross-checks both READMEs against the code:
@@ -19,6 +17,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   written after a manual README-vs-reality audit of the Kagi provider
   turned up three prose claims the upstream docs did not support, and is
   wired into the "Adding a provider" checklist in `CONTRIBUTING.md`.
+- Provider-specific tests for the eight providers that until now rode
+  only the shared contract -- AnySearch, DeepSeek, Linkup, Metaso,
+  Querit, SerpApi, Serper and You.com -- pinning each request body, its
+  knobs and clamps, its mapping quirks (Serper's body-borne filters
+  against SerpApi's URL-borne ones, You.com's web+news merge, Metaso's
+  always-present `includeRawContent`) and its error branches in
+  `test/<provider>-search.test.ts`.
+
+### Fixed
+
+- A provider that fails while registering no longer takes the other
+  nineteen down with it. The aggregate loop in `index.ts` suspends each
+  registration call and recovers from defects with a one-line stderr
+  warning naming the provider, so a bug in one plugin file costs the
+  user one provider instead of the whole package. An interruption still
+  propagates, so teardown is never mistaken for a registration failure.
+  Covered by `test/index-fault.test.ts`.
 
 ## [4.2.0] - 2026-10-20
 
