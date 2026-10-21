@@ -99,6 +99,9 @@ describe("serper-search", () => {
           },
           // Google occasionally omits the title; the link stands in for it.
           { link: "https://example.com/titleless" },
+          // A hit without a link is dropped rather than failing the page --
+          // the agent cannot open it, so it is not a result.
+          { title: "Orphan", snippet: "no link at all" },
         ],
       }),
     )
@@ -121,6 +124,18 @@ describe("serper-search", () => {
         time: {},
       },
     ])
+  })
+
+  it("names a schema-level failure with the Invalid prefix instead of a raw decode dump", async () => {
+    // The JSON-parse failure already carries this prefix; a response that
+    // parses but does not fit the schema used to surface as a bare decode
+    // error, which reads like an internal crash rather than a bad response.
+    const { harness } = await bind()
+    stubFetch(() => jsonResponse({ organic: "not an array" }))
+
+    await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
+      /Invalid Serper response/,
+    )
   })
 
   it("treats a rich-blocks-only response as no results, not a decode failure", async () => {

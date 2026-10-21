@@ -4,13 +4,14 @@ import { Effect, Schema, Stream } from "effect"
 // Serper mirrors the Google result page as JSON. Only `organic` carries the
 // links an agent reads; the rich blocks (answerBox, knowledgeGraph,
 // peopleAlsoAsk) have no source URL, so they stay out. Every result field is
-// optional -- a missing one means "Google provided none", not an error.
+// optional -- a missing one means "Google provided none", not an error -- and
+// an item with no link is dropped: a hit the agent cannot open is not a result.
 const SerperResponse = Schema.Struct({
   organic: Schema.optional(
     Schema.Array(
       Schema.Struct({
         title: Schema.optional(Schema.String),
-        link: Schema.String,
+        link: Schema.optional(Schema.String),
         snippet: Schema.optional(Schema.String),
         date: Schema.optional(Schema.String),
       }),
@@ -268,8 +269,16 @@ export const effect = (ctx: Plugin.Context) =>
               catch: (error) => new Error("Invalid Serper response: " + String(error)),
             })
 
-            const body = yield* Schema.decodeUnknownEffect(SerperResponse)(json)
-            const results = (body.organic ?? []).map(toResult)
+            // A response that fails the schema is named rather than surfaced
+            // as a raw decode dump, matching the JSON-parse failure above.
+            const body = yield* Schema.decodeUnknownEffect(SerperResponse)(json).pipe(
+              Effect.mapError((error) => new Error("Invalid Serper response: " + String(error))),
+            )
+            // One malformed item must not cost the whole page: a hit without
+            // a link is dropped, the way querit and linkup drop theirs.
+            const results = (body.organic ?? []).flatMap((item) =>
+              item.link ? [toResult({ ...item, link: item.link })] : [],
+            )
 
             // Serper charges per dispatch, so a response that never enters the
             // cache is a query paid for again on every repeat.

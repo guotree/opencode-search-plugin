@@ -83,6 +83,11 @@ describe("serpapi-search", () => {
             date: "2026-03-20",
           },
           { title: "Bare hit", link: "https://example.com/bare" },
+          // Google occasionally omits the title; the link stands in for it.
+          { link: "https://example.com/titleless" },
+          // A hit without a link is dropped rather than failing the page --
+          // the agent cannot open it, so it is not a result.
+          { title: "Orphan", snippet: "no link at all" },
         ],
       }),
     )
@@ -99,7 +104,20 @@ describe("serpapi-search", () => {
         time: { published: Date.parse("2026-03-20") },
       },
       { url: "https://example.com/bare", title: "Bare hit", content: "", time: {} },
+      { url: "https://example.com/titleless", title: "https://example.com/titleless", content: "", time: {} },
     ])
+  })
+
+  it("names a schema-level failure with the Invalid prefix instead of a raw decode dump", async () => {
+    // The JSON-parse failure already carries this prefix; a response that
+    // parses but does not fit the schema used to surface as a bare decode
+    // error, which reads like an internal crash rather than a bad response.
+    const { harness } = await bind()
+    stubFetch(() => jsonResponse({ organic_results: "not an array" }))
+
+    await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
+      /Invalid SerpApi response/,
+    )
   })
 
   it("treats a rich-blocks-only response as no results, not a decode failure", async () => {

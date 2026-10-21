@@ -4,13 +4,14 @@ import { Effect, Schema, Stream } from "effect"
 // SerpApi returns Google's organic results as JSON. Only `organic_results`
 // carries links an agent reads; answer boxes and knowledge graphs have no
 // source URL, so they stay out. Every result field is optional -- a missing one
-// means "Google provided none", not an error.
+// means "Google provided none", not an error -- and an item with no link is
+// dropped: a hit the agent cannot open is not a result.
 const SerpApiResponse = Schema.Struct({
   organic_results: Schema.optional(
     Schema.Array(
       Schema.Struct({
-        title: Schema.String,
-        link: Schema.String,
+        title: Schema.optional(Schema.String),
+        link: Schema.optional(Schema.String),
         snippet: Schema.optional(Schema.String),
         date: Schema.optional(Schema.String),
       }),
@@ -86,7 +87,7 @@ function parseSearchDate(value: string | undefined): number {
 }
 
 function toResult(item: {
-  title: string
+  title?: string | undefined
   link: string
   snippet?: string | undefined
   date?: string | undefined
@@ -94,7 +95,8 @@ function toResult(item: {
   const published = parseSearchDate(item.date)
   return {
     url: item.link,
-    title: item.title,
+    // Google occasionally omits the title; the link stands in for it.
+    title: item.title || item.link,
     content: item.snippet ?? "",
     time: Number.isFinite(published) ? { published } : {},
   }
@@ -267,8 +269,16 @@ export const effect = (ctx: Plugin.Context) =>
               catch: (error) => new Error("Invalid SerpApi response: " + String(error)),
             })
 
-            const body = yield* Schema.decodeUnknownEffect(SerpApiResponse)(json)
-            const results = (body.organic_results ?? []).map(toResult)
+            // A response that fails the schema is named rather than surfaced
+            // as a raw decode dump, matching the JSON-parse failure above.
+            const body = yield* Schema.decodeUnknownEffect(SerpApiResponse)(json).pipe(
+              Effect.mapError((error) => new Error("Invalid SerpApi response: " + String(error))),
+            )
+            // One malformed item must not cost the whole page: a hit without
+            // a link is dropped, the way querit and linkup drop theirs.
+            const results = (body.organic_results ?? []).flatMap((item) =>
+              item.link ? [toResult({ ...item, link: item.link })] : [],
+            )
 
             writeCache(queryKey, results)
             return results
