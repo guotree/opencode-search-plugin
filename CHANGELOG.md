@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-10-21
+
 ### Added
 
 - `scripts/audit-readme.mjs` cross-checks both READMEs against the code:
@@ -555,7 +557,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.2.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.2.1...HEAD
+[4.2.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.2.1
 [4.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.2.0
 [4.1.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.1.1
 [4.1.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.1.0
