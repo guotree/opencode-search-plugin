@@ -22,6 +22,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   passed the 2,000 default. The cut is recoverable, since the same text is
   what `web_fetch` returns for that URL.
 
+- Linkup Search bounds each hit's `content` with `LINKUP_CONTENT_CHARS`
+  (default 4000 code points, `0` keeps all of it), the code-point cut the other
+  bounded providers use. Measured against the live API, Linkup's `content` is a
+  query-relevant excerpt rather than a page -- 375 to 4,395 characters across
+  85 hits, median near 2,000 -- so the default sits at the top of that range
+  and trims the tail: cutting an excerpt costs answer text, not a footer. Two
+  more measurements shape the docs around it. `maxResults` is answered with at
+  most 20 whatever is asked for (50 and 200 both return 20), so the 1-100
+  clamp only guards a typo; and `depth` buys recall and latency rather than
+  text, with flash, fast and deep returning the same excerpt lengths.
+  `outputType` stays `searchResults`: `sourcedAnswer` would add an AI answer to
+  source snippets that are the same text `results[].content` already holds,
+  and WebSearch.Result has no field for an answer to live in.
+
 ### Fixed
 
 - The README pointed `ANYSEARCH_TAG` at `code.doc`, a sub-domain whose
