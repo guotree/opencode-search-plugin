@@ -223,10 +223,10 @@ Configuration options are loaded as environment variables on startup. If you cha
 | Variable | Default | Description |
 | --- | --- | --- |
 | `ANYSEARCH_MAX_RESULTS` | `10` | Results per search, clamped to 1–10 |
-| `ANYSEARCH_TAG` | — | Pins the intent router to a sub-domain, e.g., `code.doc` |
+| `ANYSEARCH_TAG` | — | Pins the intent router to a sub-domain, e.g., `code.snippet`. Sub-domains that declare required parameters (`code.doc` needs `library`, most `finance.*` need `type`) cannot be used: the plugin sends no `params` channel, so the API answers 400 naming what is missing |
 | `ANYSEARCH_ZONE` | — | Geographic zone: `cn` or `intl`; an unknown value is reported and dropped rather than silently ignored |
 | `ANYSEARCH_LANGUAGE` | — | Preferred result language, e.g., `zh-CN` |
-| `ANYSEARCH_FORMAT` | `markdown` | Content format: `markdown` or `json`; an unknown value is reported and dropped rather than silently ignored |
+| `ANYSEARCH_FORMAT` | `markdown` | Content format: `markdown` or `json`; an unknown value is reported and dropped rather than silently ignored. It shapes the `content` field's extraction, not its serialization: `markdown` is the fuller markdown body with heading structure, while `json` is a plain-text description where `content` degrades to the snippet and costs far fewer context tokens |
 | `OSP_ANYSEARCH_API_KEY` | — | Optional; anonymous access is used when omitted |
 
 ### Bocha

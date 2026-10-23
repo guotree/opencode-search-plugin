@@ -68,11 +68,20 @@ function envStr(name: string): string {
 //
 //   ANYSEARCH_CACHE_TTL     ms to reuse a response for the same query (0 disables)
 //   ANYSEARCH_MAX_RESULTS   results per search, clamped to 1-10 (the API's range)
-//   ANYSEARCH_TAG           pin the intent router to a sub-domain, e.g. "code.doc";
-//                           leave unset and AnySearch routes on the query itself
+//   ANYSEARCH_TAG           pin the intent router to a sub-domain, e.g. "code.snippet";
+//                           leave unset and AnySearch routes on the query itself.
+//                           Sub-domains with required parameters cannot be pinned --
+//                           "code.doc" needs "library" -- because this provider sends
+//                           no params channel, and the API answers 400 naming what is
+//                           missing
 //   ANYSEARCH_ZONE          "cn" or "intl"
 //   ANYSEARCH_LANGUAGE      preferred result language, e.g. "zh-CN"
-//   ANYSEARCH_FORMAT        "markdown" (default) or "json" for the content field
+//   ANYSEARCH_FORMAT        "markdown" (default) or "json" for the content field;
+//                           it shapes what `content` holds, not how it is serialized:
+//                           "markdown" is the fuller markdown body with heading
+//                           structure, "json" is a plain-text description where
+//                           `content` degrades to the snippet and costs far fewer
+//                           context tokens
 //   ANYSEARCH_TIMEOUT       ms to wait before failing (0 removes the deadline)
 //   OSP_ANYSEARCH_API_KEY       optional; anonymous access works without it
 const CACHE_TTL = envInt("ANYSEARCH_CACHE_TTL", 600_000)

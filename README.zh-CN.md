@@ -223,10 +223,10 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `ANYSEARCH_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 API 允许的 1–10 |
-| `ANYSEARCH_TAG` | — | 固定意图路由的子领域，例如 `code.doc` |
+| `ANYSEARCH_TAG` | — | 固定意图路由的子领域，例如 `code.snippet`。声明了必填参数的子领域（`code.doc` 需要 `library`，多数 `finance.*` 需要 `type`）当前无法使用：插件没有 `params` 通道，API 会返回 400 并说明缺少哪个参数 |
 | `ANYSEARCH_ZONE` | — | 区域分区：`cn` 或 `intl`；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `ANYSEARCH_LANGUAGE` | — | 首选结果语言，例如 `zh-CN` |
-| `ANYSEARCH_FORMAT` | `markdown` | `content` 字段格式：`markdown` 或 `json`；取值不在枚举内时告警并丢弃，而非静默忽略 |
+| `ANYSEARCH_FORMAT` | `markdown` | `content` 字段格式：`markdown` 或 `json`；取值不在枚举内时告警并丢弃，而非静默忽略。它改变的是 `content` 的内容形态而非序列化方式：`markdown` 是带标题层级的 markdown 正文，`json` 是纯文本描述、`content` 退化为摘要，上下文开销小得多 |
 | `OSP_ANYSEARCH_API_KEY` | — | 可选；未配置时使用免 key 匿名访问 |
 
 ### Bocha
