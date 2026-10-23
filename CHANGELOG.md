@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Ollama Search bounds what each hit's `content` spends on context:
+  `OLLAMA_CONTENT_CHARS` (default 2000 code points, `0` keeps all of it) cuts
+  the body on code points and marks the cut with an ellipsis -- the shape
+  `DOUBAO_CONTENT_CHARS` and `STEPFUN_CONTENT_CHARS` already use. The API
+  offers no length knob of its own (`web_search` takes only `query` and
+  `max_results`, and unknown parameters are accepted and ignored), and
+  Ollama's own agent example cuts its search output to 8k characters before
+  the model reads it. Measured against the live API, `content` is the whole
+  page -- byte-identical to what `web_fetch` returns for the same URL -- not
+  the "relevant content snippet" the docs describe: 20 hits across four
+  queries ran 348 to 208,805 characters, median near 10,000, and 17 of them
+  passed the 2,000 default. The cut is recoverable, since the same text is
+  what `web_fetch` returns for that URL.
+
+### Fixed
+
+- The README pointed `ANYSEARCH_TAG` at `code.doc`, a sub-domain whose
+  required `library` parameter this provider cannot send, so the example
+  could only ever fail with a 400. It now points at `code.snippet`, which
+  needs no parameters, and names the limitation. `ANYSEARCH_FORMAT` also
+  claimed to pick the serialization of the content field; it actually picks
+  its extraction (`markdown` is the fuller body with heading structure,
+  `json` is a plain-text description where `content` degrades to the
+  snippet), which is now spelled out in both languages.
+
 ## [4.3.0] - 2026-10-23
 
 ### Added
