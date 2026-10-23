@@ -298,8 +298,11 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `LINKUP_DEPTH` | `fast` | 推理深度：`flash`、`fast`、`standard` 或 `deep`；取值不在枚举内时告警并丢弃，而非静默忽略 |
-| `LINKUP_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–100 |
+| `LINKUP_DEPTH` | `fast` | 推理深度：`flash`、`fast`、`standard` 或 `deep`；取值不在枚举内时告警并丢弃，而非静默忽略。深度换来的是召回与延迟，不是文本量：实测三档的摘录长度相当 |
+| `LINKUP_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–100。API 无论请求多少最多只返回 20 条（50 与 200 都返回 20），因此该限制只用于防误填 |
+| `LINKUP_CONTENT_CHARS` | `4000` | 每条结果 `content` 保留的码点数（`0` 表示全部保留）。OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一预算闸门 |
+
+`content` 是与查询相关的摘录而非整页——85 条实测命中为 375 到 4,395 字符，中位约 2,000——因此 `LINKUP_CONTENT_CHARS` 取在该区间的顶端，只削去尾部而非答案本身。`outputType` 保持 `searchResults`：`sourcedAnswer` 只是在源摘录之上多加一段 AI 答案，而那些 `snippet` 与 `results[].content` 是同一份文本（实测长度完全相同），OpenCode 的结果结构里也没有存放答案的字段。服务端同样没有长度控制——未文档化参数会被接受并忽略。
 
 ### Metaso
 

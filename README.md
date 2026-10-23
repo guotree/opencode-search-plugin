@@ -298,8 +298,11 @@ Searches run through Kagi's v1 API (`POST kagi.com/api/v1/search`, keys from [ka
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `LINKUP_DEPTH` | `fast` | Search depth: `flash`, `fast`, `standard`, or `deep`; an unknown value is reported and dropped rather than silently ignored |
-| `LINKUP_MAX_RESULTS` | `10` | Results per search, clamped to 1–100 |
+| `LINKUP_DEPTH` | `fast` | Search depth: `flash`, `fast`, `standard`, or `deep`; an unknown value is reported and dropped rather than silently ignored. Depth buys recall and latency, not text: the three returned the same excerpt lengths when measured |
+| `LINKUP_MAX_RESULTS` | `10` | Results per search, clamped to 1–100. The API answers with at most 20 whatever is asked for (50 and 200 both return 20), so the clamp only guards a typo |
+| `LINKUP_CONTENT_CHARS` | `4000` | Code points kept from each hit's `content` (`0` keeps all of it). OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
+
+`content` is a query-relevant excerpt, not the page -- 375 to 4,395 characters across 85 measured hits, median near 2,000 -- so `LINKUP_CONTENT_CHARS` sits at the top of that range and trims the tail rather than the answer. `outputType` stays `searchResults`: `sourcedAnswer` would add an AI answer on top of source snippets that are the same text `results[].content` already holds (the lengths came back identical), and OpenCode's result shape has no field for an answer to live in. There is no server-side length control either -- unknown parameters are accepted and ignored.
 
 ### Metaso
 

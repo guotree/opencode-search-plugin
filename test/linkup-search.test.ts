@@ -82,6 +82,56 @@ describe("linkup-search", () => {
     ).toBe(true)
   })
 
+  it("cuts each excerpt to LINKUP_CONTENT_CHARS code points, defaulting to 4000", async () => {
+    const { harness } = await bind()
+    const fetch = stubFetch(() =>
+      jsonResponse({
+        results: [{ name: "Long", url: "https://example.com/long", content: "a".repeat(4500) }],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    // 4000 sits at the top of the excerpts measured against the live API, so
+    // the cut is a tail guard, and the ellipsis says it was clipped rather
+    // than that it ended there.
+    expect(results[0]!.content).toBe("a".repeat(4000) + "…")
+  })
+
+  it("keeps the whole excerpt with LINKUP_CONTENT_CHARS=0", async () => {
+    const { harness } = await bind({ LINKUP_CONTENT_CHARS: "0" })
+    const fetch = stubFetch(() =>
+      jsonResponse({
+        results: [{ name: "Long", url: "https://example.com/long", content: "a".repeat(5000) }],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    expect(results[0]!.content).toBe("a".repeat(5000))
+  })
+
+  it("cuts on code points, never slicing a surrogate pair", async () => {
+    const { harness } = await bind({ LINKUP_CONTENT_CHARS: "10" })
+    const fetch = stubFetch(() =>
+      jsonResponse({
+        results: [{ name: "Emoji", url: "https://example.com/emoji", content: "😀".repeat(20) }],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    // Each emoji is one code point but two UTF-16 units: a UTF-16 cut would
+    // leave a lone surrogate, which is not text at all.
+    expect(results[0]!.content).toBe("😀".repeat(10) + "…")
+  })
+
   it("drops image results and any hit without a url on the way out", async () => {
     const { harness } = await bind()
     stubFetch(() =>

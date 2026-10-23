@@ -81,7 +81,7 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | `test/jina-search.test.ts` | The one provider whose deadline default varies by mode |
 | `test/kagi-search.test.ts` | Kagi's request body and knobs, lens/recency precedence, the `data.search`-only mapping with `time` as published, and the 401 report |
 | `test/keenable-search.test.ts` | Keyless routing between the public and keyed endpoints, and the 402/429 reports |
-| `test/linkup-search.test.ts` | Linkup's request body, the 1-100 clamp, depth validation with its fallback, and the flatMap that drops image and URL-less hits |
+| `test/linkup-search.test.ts` | Linkup's request body, the 1-100 clamp, depth validation with its fallback, the flatMap that drops image and URL-less hits, and the code-point content cut |
 | `test/metaso-search.test.ts` | Metaso's request body, the always-present `includeRawContent` flag, the 1-100 size clamp, and the `webpages` envelope |
 | `test/moonshot-search.test.ts` | Moonshot's request body, the `include_content` opt-in, hit filtering, and the 401/403/429 reports |
 | `test/moonshot-cn-search.test.ts` | Moonshot CN's cn-host request body, long-query passthrough, and the cross-site 401 report |

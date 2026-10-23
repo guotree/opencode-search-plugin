@@ -5,6 +5,11 @@ import { Effect, Schema, Stream } from "effect"
 // are HTTP status codes only. Text and image results share one list; image
 // entries carry no content, so they are dropped on the way out. Every field is
 // optional -- a missing one means "the source provided none", not an error.
+//
+// `content` is a query-relevant excerpt, not the page -- the docs call it
+// "Extracted text content associated with the resource", and whole pages are
+// the separate Fetch endpoint's job. Measured across 85 hits it ran 375 to
+// 4,395 characters, median near 2,000.
 const LinkupResult = Schema.Struct({
   name: Schema.optional(Schema.String),
   url: Schema.String,
@@ -23,11 +28,28 @@ const LinkupResponse = Schema.Struct({
 // with them, and with the opencode.db row keyed by integration ID.
 const ID = "osp-linkup"
 
+// `content` is an excerpt rather than a page, but its length is still the
+// vendor's to decide and no parameter asks for less of it (unknown ones are
+// accepted and ignored), so it is cut to CONTENT_CHARS code points before it
+// can reach the agent. The cut counts code points, never UTF-16 units, so no
+// surrogate pair is sliced in half; the trailing ellipsis tells the model the
+// excerpt was clipped rather than that it ended there.
+//
+// The UTF-16 length check comes first because it is O(1) and can only
+// over-estimate the code-point count: an excerpt already inside the budget
+// skips the spread entirely.
+function trimContent(text: string): string {
+  if (CONTENT_CHARS <= 0 || text.length <= CONTENT_CHARS) return text
+  const points = [...text]
+  if (points.length <= CONTENT_CHARS) return text
+  return points.slice(0, CONTENT_CHARS).join("") + "…"
+}
+
 function toResult(item: typeof LinkupResult.Type) {
   return {
     url: item.url,
     title: item.name || item.url,
-    content: item.content ?? "",
+    content: trimContent(item.content ?? ""),
     time: {},
   }
 }
@@ -52,8 +74,16 @@ function envStr(name: string): string {
 //   LINKUP_CACHE_TTL     ms to reuse a response for the same query (0 disables)
 //   LINKUP_DEPTH         "flash" (few hundred ms), "fast" (~1s one-shot, the
 //                        vendor's recommended default for agents), "standard"
-//                        (single agentic pass) or "deep" (several iterations)
-//   LINKUP_MAX_RESULTS   results per search, clamped to 1-100
+//                        (single agentic pass) or "deep" (several iterations).
+//                        Depth buys recall and latency, not text: the three
+//                        returned the same excerpt lengths when measured
+//   LINKUP_MAX_RESULTS   results per search, clamped to 1-100; the API answers
+//                        with at most 20 whatever is asked for (50 and 200
+//                        both return 20), so the clamp only guards a typo
+//   LINKUP_CONTENT_CHARS code points kept from each hit's `content` (0 keeps
+//                        all of it). OpenCode never truncates a tool result,
+//                        so this is the only bound on what one search spends
+//                        on context
 //   LINKUP_TIMEOUT       ms to wait before failing (0 removes the deadline)
 //   OSP_LINKUP_API_KEY       required; from https://app.linkup.so
 const CACHE_TTL = envInt("LINKUP_CACHE_TTL", 600_000)
@@ -61,6 +91,11 @@ const CACHE_TTL = envInt("LINKUP_CACHE_TTL", 600_000)
 // no deadline of its own around `execute`, so this is the only one that exists.
 const SEARCH_TIMEOUT = envInt("LINKUP_TIMEOUT", 25_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("LINKUP_MAX_RESULTS", 10), 1), 100)
+// 4000 code points is the top of the excerpts measured here (375 to 4,395
+// across 85 hits), so this trims the tail -- 4 of those 85 -- rather than the
+// answer. Cutting an excerpt costs more than cutting a page does: what goes
+// away is answer text, not a footer. 0 keeps every excerpt whole.
+const CONTENT_CHARS = envInt("LINKUP_CONTENT_CHARS", 4_000)
 const DEPTH_VALUES = ["flash", "fast", "standard", "deep"]
 const DEPTH_RAW = envStr("LINKUP_DEPTH")
 const DEPTH = DEPTH_VALUES.includes(DEPTH_RAW) ? DEPTH_RAW : "fast"
@@ -192,6 +227,13 @@ export const effect = (ctx: Plugin.Context) =>
                   body: JSON.stringify({
                     q: queryKey,
                     depth: DEPTH,
+                    // The leanest outputType, and the only one this contract
+                    // can carry: `sourcedAnswer` adds an AI answer on top of
+                    // source snippets that are the same text `results[].content`
+                    // already holds (measured -- the lengths came back
+                    // identical), and WebSearch.Result has no field for an
+                    // answer to live in. `structured` hands back the same
+                    // sources again.
                     outputType: "searchResults",
                     maxResults: SEARCH_SIZE,
                   }),
