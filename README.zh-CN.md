@@ -197,7 +197,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | 否 | 按次搜索计费，不按结果条数计费 |
 | Moonshot | `osp-moonshot` | `OSP_MOONSHOT_API_KEY` | 否 | 月之暗面国际站（api.moonshot.ai）；独立搜索接口，成功搜索每次 0.002 美元（失败或空结果不计费）；与国内站为相互独立的账号体系 |
 | Moonshot CN | `osp-moonshot-cn` | `OSP_MOONSHOT_CN_API_KEY` | 否 | 月之暗面国内站（api.moonshot.cn）；独立搜索接口，成功搜索每次 0.01 元（失败或空结果不计费）；与国际站为相互独立的账号体系 |
-| Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | 否 | 个人档免费；每条结果包含整页 markdown，上下文偏重；上限 10 条，且不带发布日期 |
+| Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | 否 | 个人档免费；每条结果包含整页 markdown（按 `OLLAMA_CONTENT_CHARS` 截断）；上限 10 条，且不带发布日期 |
 | Perplexity | `osp-perplexity` | `OSP_PERPLEXITY_API_KEY` | 否 | Search API 直接返回搜索结果，不包含生成的问答正文；按请求计费，每千次 5 美元，使用 `fast` 则为 1 美元 |
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | 否 | 摘要缺失时回退至句子级匹配 |
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；包含 SerpApi 自带的免费 1 小时服务端缓存 |
@@ -338,7 +338,10 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `OLLAMA_MAX_RESULTS` | `5` | 每次搜索的结果数，限制在 1–10（API 上限）。每条结果均包含整页 markdown 正文而非摘要，默认 5 条即可提供丰富的上下文 |
+| `OLLAMA_MAX_RESULTS` | `5` | 每次搜索的结果数，限制在 1–10（API 上限）。每条结果的 `content` 是整页正文而非摘要，因此条数会与下面的单条预算相乘 |
+| `OLLAMA_CONTENT_CHARS` | `2000` | 每条结果 `content` 保留的码点数（`0` 表示全部保留）。OpenCode 不会截断工具输出，因此这是 Ollama 输出进入 agent 上下文的唯一闸门 |
+
+Ollama 官方文档将 `content` 描述为「网页的相关内容片段」。实测并非如此：对线上 API 实测，`content` 就是整页正文，且与同一 URL 的 `web_fetch` 返回**逐字相同**。四组查询共 20 条结果，长度从 348 到 208,805 字符（中位约 10,000），其中 17 条超过 2000 的默认预算。API 不提供任何减少返回量的手段（未文档化参数会被接受并静默忽略），因此上面的预算是唯一闸门。它也是可恢复的：既然 `content` 与 `web_fetch` 返回同一份文本，agent 需要正文其余部分时可另行抓取。Ollama 自己的 agent 示例也在模型读取前把搜索输出截断到 8000 字符。
 
 ### Perplexity
 

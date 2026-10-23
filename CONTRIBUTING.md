@@ -85,7 +85,7 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | `test/metaso-search.test.ts` | Metaso's request body, the always-present `includeRawContent` flag, the 1-100 size clamp, and the `webpages` envelope |
 | `test/moonshot-search.test.ts` | Moonshot's request body, the `include_content` opt-in, hit filtering, and the 401/403/429 reports |
 | `test/moonshot-cn-search.test.ts` | Moonshot CN's cn-host request body, long-query passthrough, and the cross-site 401 report |
-| `test/ollama-search.test.ts` | Ollama's request body, the 1-10 clamp, and the flat-result mapping |
+| `test/ollama-search.test.ts` | Ollama's request body, the 1-10 clamp, the flat-result mapping, and the code-point content cut |
 | `test/perplexity-search.test.ts` | Perplexity's request body, the documented-only filters, date fallback from `last_updated`, and the 401 envelope |
 | `test/querit-search.test.ts` | Querit's request body, the unclamped `QUERIT_COUNT` pass-through, the snippet/sentence content rule, and both error branches |
 | `test/serpapi-search.test.ts` | SerpApi's GET query construction, the GL/HL/TBS knobs, and the organic-results-only mapping |

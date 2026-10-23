@@ -197,7 +197,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | Metaso | `osp-metaso` | `OSP_METASO_API_KEY` | no | Billed per search, not per result |
 | Moonshot | `osp-moonshot` | `OSP_MOONSHOT_API_KEY` | no | Moonshot's international site (api.moonshot.ai); standalone search endpoint, billed per successful search at $0.002 (failed or empty searches are free); separate account system from the cn site |
 | Moonshot CN | `osp-moonshot-cn` | `OSP_MOONSHOT_CN_API_KEY` | no | Moonshot's cn site (api.moonshot.cn); standalone search endpoint, billed ¥0.01 per successful search (failed or empty searches are free); separate account system from the international site |
-| Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | no | Free personal tier; returns full-page markdown per result (up to 10 results, no publication dates) |
+| Ollama | `osp-ollama` | `OSP_OLLAMA_API_KEY` | no | Free personal tier; returns full-page markdown per result, cut to `OLLAMA_CONTENT_CHARS` (up to 10 results, no publication dates) |
 | Perplexity | `osp-perplexity` | `OSP_PERPLEXITY_API_KEY` | no | Search API returns direct search results without generated answers; $5.00 / 1,000 requests ($1.00 with `fast`) |
 | Querit | `osp-querit` | `OSP_QUERIT_API_KEY` | no | Falls back to sentence matches when a snippet is missing |
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | no | Google via SerpApi; includes SerpApi's free 1-hour server-side cache |
@@ -338,7 +338,10 @@ The international site ([platform.kimi.ai](https://platform.kimi.ai)) is a separ
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OLLAMA_MAX_RESULTS` | `5` | Results per search, clamped to 1–10 (API maximum). Because each result includes full-page markdown rather than snippets, the default 5 results provide extensive context |
+| `OLLAMA_MAX_RESULTS` | `5` | Results per search, clamped to 1–10 (API maximum). Each result's `content` is a page body rather than a snippet, so the count multiplies with the per-hit budget below |
+| `OLLAMA_CONTENT_CHARS` | `2000` | Code points kept from each hit's `content` (`0` keeps all of it). OpenCode never truncates a tool result, so this is the only bound between Ollama's output and the agent's context |
+
+Ollama's docs describe `content` as "a relevant content snippet from the web page". It is not: measured against the live API, `content` is the whole page and comes back byte-identical to what `web_fetch` returns for the same URL. Across 20 hits from four queries it ranged from 348 to 208,805 characters (median around 10,000), and 17 of the 20 exceeded the 2,000 default. The API offers no way to ask for less -- unknown parameters are accepted and silently ignored -- so the budget above is the only bound. It is also a recoverable one: since `content` is the same text `web_fetch` returns, an agent that needs the rest of a page can fetch it. Ollama's own agent example cuts the search output to 8,000 characters before the model reads it.
 
 ### Perplexity
 

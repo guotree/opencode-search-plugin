@@ -2,11 +2,13 @@ import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
 
 // Ollama's hosted search answers with the flattest envelope in this package:
-// `results` carries the hits, each a title, a URL and the page's own markdown
-// -- hundreds to tens of thousands of characters, because `content` is the
-// fetched page, not a snippet -- with no wrapper fields and, unlike every
-// other provider here, no dates. Every field but the URL is optional, and a
-// missing one means "Ollama provided none", not an error.
+// `results` carries the hits, each a title, a URL and a `content` that is the
+// whole page -- byte-identical to `web_fetch`'s output for the same URL,
+// whatever the docs' "a relevant content snippet" says: 20 hits across four
+// queries ran 348 to 208,805 characters, median near 10,000 -- with no
+// wrapper fields and, unlike every other provider here, no dates. Every field
+// but the URL is optional, and a missing one means "Ollama provided none",
+// not an error.
 const OllamaResponse = Schema.Struct({
   results: Schema.optional(
     Schema.Array(
@@ -27,6 +29,24 @@ const OllamaResponse = Schema.Struct({
 // that model provider, and from the opencode.db row keyed by integration ID.
 const ID = "osp-ollama"
 
+// `content` is the fetched page in full -- 348 to 208,805 characters when
+// measured, median near 10,000 -- and no parameter asks for less of it
+// (unknown ones are accepted and ignored), so it is cut to CONTENT_CHARS code
+// points before it can reach the agent. The cut counts code points, never
+// UTF-16 units, so no surrogate pair is sliced in half; the trailing ellipsis
+// tells the model the body was clipped rather than that it ended there.
+//
+// The UTF-16 length check comes first because it is O(1) and can only
+// over-estimate the code-point count: a body already inside the budget skips
+// the spread entirely, which matters when a response carries ten full pages
+// the caller never reads.
+function trimContent(text: string): string {
+  if (CONTENT_CHARS <= 0 || text.length <= CONTENT_CHARS) return text
+  const points = [...text]
+  if (points.length <= CONTENT_CHARS) return text
+  return points.slice(0, CONTENT_CHARS).join("") + "…"
+}
+
 // Ollama returns no publication date, so results carry an empty time record.
 function toResult(item: {
   title?: string | undefined
@@ -38,7 +58,7 @@ function toResult(item: {
     // The URL is the one field the schema insists on, so it is also the one
     // thing a title can fall back to rather than leave the result untitled.
     title: item.title || item.url,
-    content: item.content ?? "",
+    content: trimContent(item.content ?? ""),
     time: {},
   }
 }
@@ -64,10 +84,13 @@ function envStr(name: string): string {
 // restart after changing them.
 //
 //   OLLAMA_CACHE_TTL     ms to reuse a response for the same query (0 disables)
-//   OLLAMA_MAX_RESULTS   results per search, clamped to 1-10 (the API's range).
-//                        `content` is a whole page of markdown, not a snippet,
-//                        so the default of 5 already means thousands of
-//                        characters of context per search
+//   OLLAMA_MAX_RESULTS   results per search, clamped to 1-10 (the API's range)
+//   OLLAMA_CONTENT_CHARS code points kept from each hit's `content` (0 keeps
+//                        all of it). OpenCode never truncates a tool result,
+//                        so this is the only bound between Ollama's output and
+//                        the agent's context -- the API offers no length knob
+//                        of its own, and Ollama's own agent example cuts the
+//                        search output to 8k characters before the model sees it
 //   OLLAMA_TIMEOUT       ms to wait before failing (0 removes the deadline)
 //   OSP_OLLAMA_API_KEY   required; from https://ollama.com/settings/keys.
 //                        Namespaced away from the vendor-canonical
@@ -81,6 +104,12 @@ const CACHE_TTL = envInt("OLLAMA_CACHE_TTL", 600_000)
 // no deadline of its own around `execute`, so this is the only one that exists.
 const SEARCH_TIMEOUT = envInt("OLLAMA_TIMEOUT", 25_000)
 const MAX_RESULTS = Math.min(Math.max(envInt("OLLAMA_MAX_RESULTS", 5), 1), 10)
+// 2000 code points per hit keeps five results around the 8k characters that
+// Ollama's own agent example budgets for a whole search result, and matches
+// Doubao's default. It clips 17 of 20 measured hits, and what it leaves out
+// stays reachable: `content` is the same text `web_fetch` returns. 0 reads
+// every page body whole.
+const CONTENT_CHARS = envInt("OLLAMA_CONTENT_CHARS", 2_000)
 
 const SEARCH_URL = "https://ollama.com/api/web_search"
 
