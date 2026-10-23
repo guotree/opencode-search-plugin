@@ -161,7 +161,10 @@ describe("index", () => {
   })
 
   it("keeps the anonymous providers available even with no credential", async () => {
-    const mod = await loadPlugin<AggregateModule>("../index")
+    const mod = await loadPlugin<AggregateModule>(
+      "../index",
+      Object.fromEntries(PROVIDER_CASES.map(({ envKey }) => [envKey, ""])),
+    )
     const harness = makeHarness()
     await harness.run(mod.default.effect(harness.ctx))
     expect(harness.providers.map((p) => p.id)).toEqual(["osp-anysearch", "osp-keenable"])

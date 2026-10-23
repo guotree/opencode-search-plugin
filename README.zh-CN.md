@@ -36,7 +36,7 @@ opencode plugin add opencode-search-plugin
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## 为什么做这个插件
 
@@ -189,6 +189,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | Bocha | `osp-bocha` | `OSP_BOCHA_API_KEY` | 否 | 结果格式兼容 Bing；按搜索次数计费，请求摘要时另按 token 计费 |
 | Brave Search | `osp-brave` | `OSP_BRAVE_API_KEY` | 否 | 独立索引，最多 20 条结果 |
 | DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | 否 | 自研搜索引擎；每千次成功请求 5 元；限速 5 QPS |
+| Doubao | `osp-doubao` | `OSP_DOUBAO_API_KEY` | 否 | 火山引擎豆包搜索（Custom 版）；每个账号每月 500 次免费额度，超出按次计费；每条结果附带长正文（默认按码点截断），最多 50 条，支持信源权威度与时间范围过滤 |
 | Jina | `osp-jina` | `OSP_JINA_API_KEY` | 否 | 页面正文按 token 计费，因此默认不获取 |
 | Kagi | `osp-kagi` | `OSP_KAGI_API_KEY` | 否 | 订阅制无广告索引，支持 lens；每千次请求 12 美元，无免费额度 |
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | 是 | 配置 key 每月享有 100,000 次免费请求；免 key 层级按 IP 限速 |
@@ -250,6 +251,18 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `DEEPSEEK_COUNT` | `10` | 每次搜索的结果数，限制在 1–50（DeepSeek 上限）。按请求计费，增加结果条数不产生额外费用 |
+
+### Doubao
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `DOUBAO_COUNT` | `10` | 每次搜索的结果数，限制在 1–50（豆包上限） |
+| `DOUBAO_AUTH_LEVEL` | 关 | `1`–`4` 表示只保留该信源权威等级的结果（`1` 为政府、央媒、高校与头部企业官网）；取值不在枚举内时告警并丢弃，而非静默忽略 |
+| `DOUBAO_TIME_RANGE` | — | 时间筛选：`OneDay`、`OneWeek`、`OneMonth` 或 `OneYear`；取值不在枚举内时告警并丢弃，而非静默忽略 |
+| `DOUBAO_CONTENT` | `full` | `full` 优先读取每条结果的整页正文，`snippet` 只保留查询相关摘录（实测约 600 字符，服务端截断）；取值不在枚举内时告警并丢弃，而非静默忽略 |
+| `DOUBAO_CONTENT_CHARS` | `2000` | 两种模式下每条内容保留的码点数（`0` 表示不截断）。OpenCode 不会截断工具输出，因此这是豆包输出进入 agent 上下文的唯一闸门 |
+
+搜索走火山引擎豆包搜索的 Custom 版（为 AI Agent 构建的搜索 API，`POST open.feedcoopapi.com/search_api/web_search`，密钥从[豆包搜索控制台](https://console.volcengine.com/search-infinity/web-search-exp)获取）。按搜索次数计费，每个火山引擎账号每月享有 500 次免费额度，因此每次请求都按计费对待，相同查询复用共享缓存。本插件只发送能对照 API 参考文档核实的参数：查询词、`SearchType: "web"` 与 `Count`；每条结果的整页正文（数千字，同门 Global 版只返回短摘要）无需请求即会返回。Global 版与 Custom 版共用同一个 API Key 和免费额度，但使用另一套 snake_case 协议、固定返回 10 条并带有逐条 token 计数——本插件目前只接入 Custom 版。
 
 ### Jina
 

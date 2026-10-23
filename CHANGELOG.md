@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-10-23
+
+### Added
+
+- Doubao Search (`osp-doubao`, `plugins/doubao-search.ts`), speaking the
+  Custom version of Volcengine's Doubao Search -- the search API ByteDance
+  built for AI agents. Custom is the version wired up here because it
+  returns the full page body per hit (thousands of characters), honors
+  `Count` server-side up to 50, and can restrict results to authoritative
+  sources (`DOUBAO_AUTH_LEVEL`) and a time range (`DOUBAO_TIME_RANGE`);
+  the sibling Global version shares the same API key and free quota but
+  speaks a different snake_case protocol. 500 free searches per month per
+  Volcengine account, then per-search billing. Reads `PublishTime` in both
+  of its shapes -- ISO with an explicit offset, and a bare UTC+8 wall clock
+  -- and surfaces Doubao's business errors, which ride HTTP 200 inside
+  `ResponseMetadata.Error`, instead of letting them decode into a silent
+  empty result. Because OpenCode never truncates a tool result, the
+  provider bounds what the API's page bodies spend on context itself:
+  `DOUBAO_CONTENT` picks the body or the query-relevant excerpt, and
+  `DOUBAO_CONTENT_CHARS` cuts whichever wins on code points (default 2000,
+  roughly half a typical Doubao body; `0` keeps all of it).
+
 ## [4.2.1] - 2026-10-21
 
 ### Added
@@ -557,7 +579,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.2.1...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.3.0...HEAD
+[4.3.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.3.0
 [4.2.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.2.1
 [4.2.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.2.0
 [4.1.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.1.1

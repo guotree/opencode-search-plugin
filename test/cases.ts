@@ -127,6 +127,49 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "doubao-search",
+    pluginID: "doubao-search",
+    providerID: "osp-doubao",
+    displayName: "Doubao Search",
+    envKey: "OSP_DOUBAO_API_KEY",
+    // The real envelope, straight from the Custom version's API reference:
+    // `ResponseMetadata` names the call, `ResultCount`/`SearchContext`/
+    // `TimeCost`/`LogId` ride along unread, and `SiteName`/`Position`/
+    // `AuthInfoDes` sit on the hit next to the fields mapped below. No
+    // `PublishTime` either: date parsing is shared byte-for-byte and
+    // exercised end-to-end through Brave.
+    response: {
+      ResponseMetadata: {
+        RequestId: "20261022120000000ABCDEFGH",
+        Error: { Code: "", Message: "" },
+      },
+      Result: {
+        ResultCount: 1,
+        WebResults: [
+          {
+            Title: "Doubao hit",
+            Url: "https://example.com/doubao",
+            SiteName: "示例网站",
+            Snippet: "Doubao snippet",
+            Content: "Doubao full page body",
+            Position: 1,
+            AuthInfoDes: "权威",
+          },
+        ],
+        SearchContext: { OriginQuery: "a query", SearchType: "web" },
+        TimeCost: 700,
+        LogId: "b7c1d2e3f4a59c6d",
+      },
+    },
+    expected: [
+      {
+        url: "https://example.com/doubao",
+        title: "Doubao hit",
+        content: "Doubao full page body",
+      },
+    ],
+  },
+  {
     file: "jina-search",
     pluginID: "jina-search",
     providerID: "osp-jina",

@@ -1,7 +1,7 @@
 {
   "name": "opencode-search-plugin",
-  "version": "4.2.1",
-  "description": "Twenty self-contained websearch provider plugins for OpenCode v2: AnySearch, Bocha, Brave, DeepSeek, Jina, Kagi, Keenable, Linkup, Metaso, Moonshot, Moonshot CN, Ollama, Perplexity, Querit, SerpApi, Serper, StepFun, You.com, Z.ai and Zhipu.",
+  "version": "4.3.0",
+  "description": "Twenty-one self-contained websearch provider plugins for OpenCode v2: AnySearch, Bocha, Brave, DeepSeek, Doubao, Jina, Kagi, Keenable, Linkup, Metaso, Moonshot, Moonshot CN, Ollama, Perplexity, Querit, SerpApi, Serper, StepFun, You.com, Z.ai and Zhipu.",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -26,6 +26,7 @@
     "./bocha-search": "./plugins/bocha-search.ts",
     "./brave-search": "./plugins/brave-search.ts",
     "./deepseek-search": "./plugins/deepseek-search.ts",
+    "./doubao-search": "./plugins/doubao-search.ts",
     "./jina-search": "./plugins/jina-search.ts",
     "./kagi-search": "./plugins/kagi-search.ts",
     "./keenable-search": "./plugins/keenable-search.ts",

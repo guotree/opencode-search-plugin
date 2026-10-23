@@ -36,7 +36,7 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 
 ## Supported providers
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## Why this exists
 
@@ -189,6 +189,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | Bocha | `osp-bocha` | `OSP_BOCHA_API_KEY` | no | Bing-compatible results; billed per search, and by token when summaries are requested |
 | Brave Search | `osp-brave` | `OSP_BRAVE_API_KEY` | no | Independent index, 20 results max |
 | DeepSeek | `osp-deepseek` | `OSP_DEEPSEEK_API_KEY` | no | In-house index; $0.75 per 1,000 successful requests; 5 QPS rate limit |
+| Doubao | `osp-doubao` | `OSP_DOUBAO_API_KEY` | no | Volcengine's Doubao Search (Custom version); 500 free searches per month per account, billed per search after that; long page body per hit (cut to a code-point budget by default), up to 50 results, source-authority and time filters |
 | Jina | `osp-jina` | `OSP_JINA_API_KEY` | no | Full-page content is opt-in due to token-based billing |
 | Kagi | `osp-kagi` | `OSP_KAGI_API_KEY` | no | Ad-free subscription index with lenses; $12 per 1,000 requests, no free tier |
 | Keenable | `osp-keenable` | `OSP_KEENABLE_API_KEY` | yes | 100,000 free requests/month with a key; keyless tier is rate-limited per IP |
@@ -250,6 +251,18 @@ Configuration options are loaded as environment variables on startup. If you cha
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DEEPSEEK_COUNT` | `10` | Results per search, clamped to 1–50 (DeepSeek's maximum). Billed per request; additional results incur no extra charge |
+
+### Doubao
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DOUBAO_COUNT` | `10` | Results per search, clamped to 1–50 (Doubao's maximum) |
+| `DOUBAO_AUTH_LEVEL` | `off` | `1`–`4` keeps only results at that source-authority level (`1` is government, state media, universities and major company official sites); an unknown value is reported and dropped rather than silently ignored |
+| `DOUBAO_TIME_RANGE` | — | Freshness filter: `OneDay`, `OneWeek`, `OneMonth` or `OneYear`; an unknown value is reported and dropped rather than silently ignored |
+| `DOUBAO_CONTENT` | `full` | `full` reads each hit's page body, `snippet` keeps only the query-relevant excerpt (roughly 600 characters, cut server-side); an unknown value is reported and dropped rather than silently ignored |
+| `DOUBAO_CONTENT_CHARS` | `2000` | Code points kept from each hit's content in either mode (`0` keeps all of it). OpenCode never truncates a tool result, so this is the only bound between Doubao's output and the agent's context |
+
+Searches run through the Custom version of Doubao Search, Volcengine's search API built for AI agents (`POST open.feedcoopapi.com/search_api/web_search`, keys from the [Doubao Search console](https://console.volcengine.com/search-infinity/web-search-exp)). Billing is per search with 500 free searches per month per Volcengine account, so every dispatch is assumed billed and repeat queries ride the shared cache. This provider sends only what it can verify against the API reference: the query, `SearchType: "web"` and `Count`; the full page body (thousands of characters, where the sibling Global version returns a short snippet) comes back without asking for it. The Global version shares the same API key and free quota but speaks a different, snake_case protocol with a fixed 10 results and per-result token counts -- only the Custom version is wired up here.
 
 ### Jina
 

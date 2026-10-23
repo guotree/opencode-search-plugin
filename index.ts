@@ -6,6 +6,7 @@ import { effect as anysearch } from "./plugins/anysearch-search"
 import { effect as bocha } from "./plugins/bocha-search"
 import { effect as brave } from "./plugins/brave-search"
 import { effect as deepseek } from "./plugins/deepseek-search"
+import { effect as doubao } from "./plugins/doubao-search"
 import { effect as jina } from "./plugins/jina-search"
 import { effect as kagi } from "./plugins/kagi-search"
 import { effect as keenable } from "./plugins/keenable-search"
@@ -26,7 +27,7 @@ import { effect as zhipu } from "./plugins/zhipu-search"
 type ProviderEffect = (ctx: Plugin.Context) => Effect.Effect<void, never, Scope.Scope>
 
 /**
- * The twenty providers this package registers, in alphabetical order. Each entry
+ * The twenty-one providers this package registers, in alphabetical order. Each entry
  * is the same effect its standalone file uses as a default export, so a file
  * copied out of this repository behaves exactly as it does here.
  *
@@ -40,6 +41,7 @@ const PROVIDERS: ReadonlyArray<readonly [id: string, run: ProviderEffect]> = [
   ["osp-bocha", bocha],
   ["osp-brave", brave],
   ["osp-deepseek", deepseek],
+  ["osp-doubao", doubao],
   ["osp-jina", jina],
   ["osp-kagi", kagi],
   ["osp-keenable", keenable],
@@ -135,7 +137,7 @@ export default Plugin.define({
         if (disabled.has(id)) continue
         if (allowed !== undefined && !allowed.has(id)) continue
         // One provider's registration bug must not cost the user the other
-        // nineteen. A defect here is named on stderr and the loop moves on;
+        // twenty. A defect here is named on stderr and the loop moves on;
         // an interruption is teardown rather than failure, and `catchDefect`
         // propagates it untouched so shutdown never waits behind a warning.
         // `suspend` wraps the call itself: a factory that throws before it
