@@ -98,6 +98,28 @@ function toResult(item: {
 }
 
 type SearchResult = NonNullable<ReturnType<typeof toResult>>
+// An error body is diagnostic, not content: a WAF or CDN interposing an HTML
+// page can make it tens of kilobytes, and every byte would land in the tool
+// result and the model's context. API refusal bodies are JSON of a few hundred
+// characters, so a bound sized above them loses nothing. Counted in code
+// points, never UTF-16 units, so no surrogate pair is sliced in half.
+const ERROR_DETAIL_CHARS = 300
+
+function boundDetail(detail: string): string {
+  if (detail.length <= ERROR_DETAIL_CHARS) return detail
+  const points = [...detail]
+  if (points.length <= ERROR_DETAIL_CHARS) return detail
+  return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
+}
+// `Retry-After` is delay-seconds ("3") or an HTTP-date ("Wed, 21 Oct 2026
+// 07:28:00 GMT"); only the seconds form earns its "s".
+function retryHint(retry: string | null): string {
+  const value = retry?.trim()
+  if (!value) return ""
+  return ", retry after " + value + (/^\d+$/.test(value) ? "s" : "")
+}
+
+
 
 function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()
@@ -279,7 +301,7 @@ export const effect = (ctx: Plugin.Context) =>
                 return yield* Effect.fail(
                   new Error(
                     "Keenable rate limited the request (HTTP 429)" +
-                      (retry ? ", retry after " + retry + "s" : "") +
+                      retryHint(retry) +
                       (key
                         ? ""
                         : ". The keyless pool allows 1,000 requests an hour and " +
@@ -293,7 +315,7 @@ export const effect = (ctx: Plugin.Context) =>
                 catch: () => new Error("response body unavailable"),
               })
               return yield* Effect.fail(
-                new Error("Keenable API error " + response.status + ": " + detail),
+                new Error("Keenable API error " + response.status + ": " + boundDetail(detail)),
               )
             }
 

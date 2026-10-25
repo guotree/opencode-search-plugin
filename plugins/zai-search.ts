@@ -122,6 +122,28 @@ function toResult(item: {
 }
 
 type SearchResult = NonNullable<ReturnType<typeof toResult>>
+// An error body is diagnostic, not content: a WAF or CDN interposing an HTML
+// page can make it tens of kilobytes, and every byte would land in the tool
+// result and the model's context. API refusal bodies are JSON of a few hundred
+// characters, so a bound sized above them loses nothing. Counted in code
+// points, never UTF-16 units, so no surrogate pair is sliced in half.
+const ERROR_DETAIL_CHARS = 300
+
+function boundDetail(detail: string): string {
+  if (detail.length <= ERROR_DETAIL_CHARS) return detail
+  const points = [...detail]
+  if (points.length <= ERROR_DETAIL_CHARS) return detail
+  return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
+}
+// `Retry-After` is delay-seconds ("3") or an HTTP-date ("Wed, 21 Oct 2026
+// 07:28:00 GMT"); only the seconds form earns its "s".
+function retryHint(retry: string | null): string {
+  const value = retry?.trim()
+  if (!value) return ""
+  return ", retry after " + value + (/^\d+$/.test(value) ? "s" : "")
+}
+
+
 
 // Z.ai bills per search -- $0.01 on Search-Prime, the only engine the intl
 // spec enumerates -- with no free tier and no anonymous tier, so a repeat
@@ -328,7 +350,7 @@ export const effect = (ctx: Plugin.Context) =>
                 try: () => response.text(),
                 catch: () => new Error("response body unavailable"),
               })
-              const described = describeFailure(String(detail))
+              const described = boundDetail(describeFailure(String(detail)))
 
               // A 401 here is most often a cn key: the two sites are separate
               // account systems, and the fix is a different provider, not a
@@ -347,7 +369,7 @@ export const effect = (ctx: Plugin.Context) =>
                 return yield* Effect.fail(
                   new Error(
                     "Z.ai rate limited the request (HTTP 429)" +
-                      (retry ? ", retry after " + retry + "s" : "") +
+                      retryHint(retry) +
                       ": " +
                       described +
                       ". Concurrent searches are capped per account; retry shortly or run fewer searches at once",

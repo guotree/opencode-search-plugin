@@ -27,6 +27,26 @@ const ENV_INT = `function envInt(name: string, fallback: number): number {
   return Number.isFinite(value) && value >= 0 ? value : fallback
 }`
 
+const ERROR_DETAIL_BLOCK = `const ERROR_DETAIL_CHARS = 300
+
+function boundDetail(detail: string): string {
+  if (detail.length <= ERROR_DETAIL_CHARS) return detail
+  const points = [...detail]
+  if (points.length <= ERROR_DETAIL_CHARS) return detail
+  return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
+}`
+
+const RETRY_HINT_BLOCK = `function retryHint(retry: string | null): string {
+  const value = retry?.trim()
+  if (!value) return ""
+  return ", retry after " + value + (/^\\d+$/.test(value) ? "s" : "")
+}`
+
+const WITH_RETRY_HINT = [
+  "bocha-search", "doubao-search", "keenable-search",
+  "stepfun-search", "zai-search", "zhipu-search",
+]
+
 const CACHE_BLOCK = `const EMPTY_RESULT_TTL = 30_000
 const cache = new Map<string, { at: number; ttl: number; results: SearchResult[] }>()
 
@@ -250,11 +270,22 @@ describe("repository structure", () => {
     for (const { file } of PROVIDER_CASES) {
       const source = providerSource(file)
       expect(source, `${file} envInt`).toContain(ENV_INT)
+      expect(source, `${file} error detail bound`).toContain(ERROR_DETAIL_BLOCK)
       expect(source, `${file} cache`).toContain(CACHE_BLOCK)
       expect(source, `${file} credential read`).toContain(SOFTEN_BLOCK)
       expect(source, `${file} must export a composable effect`).toContain(
         "export const effect = (ctx: Plugin.Context) =>",
       )
+    }
+
+    for (const { file } of PROVIDER_CASES) {
+      const source = providerSource(file)
+      if (WITH_RETRY_HINT.includes(file)) {
+        expect(source, `${file} retry hint`).toContain(RETRY_HINT_BLOCK)
+        expect(source, `${file} applies retry hint`).toContain("retryHint(retry) +")
+      } else {
+        expect(source, `${file} has no Retry-After hint`).not.toContain("function retryHint(")
+      }
     }
 
     for (const file of WITH_DATES) {

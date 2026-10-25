@@ -135,6 +135,20 @@ function toResult(item: {
 }
 
 type SearchResult = NonNullable<ReturnType<typeof toResult>>
+// An error body is diagnostic, not content: a WAF or CDN interposing an HTML
+// page can make it tens of kilobytes, and every byte would land in the tool
+// result and the model's context. API refusal bodies are JSON of a few hundred
+// characters, so a bound sized above them loses nothing. Counted in code
+// points, never UTF-16 units, so no surrogate pair is sliced in half.
+const ERROR_DETAIL_CHARS = 300
+
+function boundDetail(detail: string): string {
+  if (detail.length <= ERROR_DETAIL_CHARS) return detail
+  const points = [...detail]
+  if (points.length <= ERROR_DETAIL_CHARS) return detail
+  return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
+}
+
 
 // Moonshot bills per search -- ¥0.01 on this site's Basic endpoint -- and
 // bills only for a dispatch that returned at least one result: a failed or
@@ -341,7 +355,7 @@ export const effect = (ctx: Plugin.Context) =>
               const described = describeFailure(String(detail))
               // 401 and 403 are documented to arrive with no error body, so
               // the detail is quoted only when there is any.
-              const quoted = described === "" ? "" : ": " + described
+              const quoted = described === "" ? "" : ": " + boundDetail(described)
 
               // A 401 here is most often the other site's key: the two sites
               // issue keys from separate consoles, and the fix is a different

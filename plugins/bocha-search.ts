@@ -142,6 +142,28 @@ function toResult(item: {
 }
 
 type SearchResult = NonNullable<ReturnType<typeof toResult>>
+// An error body is diagnostic, not content: a WAF or CDN interposing an HTML
+// page can make it tens of kilobytes, and every byte would land in the tool
+// result and the model's context. API refusal bodies are JSON of a few hundred
+// characters, so a bound sized above them loses nothing. Counted in code
+// points, never UTF-16 units, so no surrogate pair is sliced in half.
+const ERROR_DETAIL_CHARS = 300
+
+function boundDetail(detail: string): string {
+  if (detail.length <= ERROR_DETAIL_CHARS) return detail
+  const points = [...detail]
+  if (points.length <= ERROR_DETAIL_CHARS) return detail
+  return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
+}
+
+// `Retry-After` is delay-seconds ("3") or an HTTP-date ("Wed, 21 Oct 2026
+// 07:28:00 GMT"); only the seconds form earns its "s".
+function retryHint(retry: string | null): string {
+  const value = retry?.trim()
+  if (!value) return ""
+  return ", retry after " + value + (/^\d+$/.test(value) ? "s" : "")
+}
+
 
 // Bocha bills per search, at a tiered rate, so a repeat query is a dispatch
 // worth skipping. The knobs trade money for context: `BOCHA_SUMMARY` in
@@ -327,7 +349,7 @@ export const effect = (ctx: Plugin.Context) =>
                 try: () => response.text(),
                 catch: () => new Error("response body unavailable"),
               })
-              const described = describeFailure(String(detail))
+              const described = boundDetail(describeFailure(String(detail)))
 
               // Bocha names each refusal in its own body, and the three below
               // carry a fix the user can act on -- a status code would send
@@ -355,7 +377,7 @@ export const effect = (ctx: Plugin.Context) =>
                 return yield* Effect.fail(
                   new Error(
                     "Bocha rate limited the request (HTTP 429)" +
-                      (retry ? ", retry after " + retry + "s" : "") +
+                      retryHint(retry) +
                       ": " +
                       described +
                       ". The request cap scales with the account's recharge amount",

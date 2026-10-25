@@ -125,6 +125,20 @@ function toResult(item: YouHit) {
 }
 
 type SearchResult = ReturnType<typeof toResult>
+// An error body is diagnostic, not content: a WAF or CDN interposing an HTML
+// page can make it tens of kilobytes, and every byte would land in the tool
+// result and the model's context. API refusal bodies are JSON of a few hundred
+// characters, so a bound sized above them loses nothing. Counted in code
+// points, never UTF-16 units, so no surrogate pair is sliced in half.
+const ERROR_DETAIL_CHARS = 300
+
+function boundDetail(detail: string): string {
+  if (detail.length <= ERROR_DETAIL_CHARS) return detail
+  const points = [...detail]
+  if (points.length <= ERROR_DETAIL_CHARS) return detail
+  return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
+}
+
 
 // You.com is pay-as-you-go and has no anonymous tier: $5 per 1k searches, up
 // to 100 results per call. A repeat query is a fresh billed dispatch, so
@@ -312,7 +326,7 @@ export const effect = (ctx: Plugin.Context) =>
                 catch: () => new Error("response body unavailable"),
               })
               return yield* Effect.fail(
-                new Error("You.com API error " + response.status + ": " + detail),
+                new Error("You.com API error " + response.status + ": " + boundDetail(detail)),
               )
             }
 
