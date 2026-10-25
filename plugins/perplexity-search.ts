@@ -5,13 +5,13 @@ import { Effect, Schema, Stream } from "effect"
 // `results[]` of {title, url, snippet, date, last_updated}, with no generated
 // prose to strip. That is what separates it from the vendor's Agent API
 // (`/v1/agent`, which answers in prose) and the Sonar API it retired in
-// September 2026. Every field except `url` is optional -- a missing one means
-// "the source provided none", not an error -- and `snippet` is documented as
-// "" for PDFs and short pages, which the mapping below tolerates rather than
-// dropping the row over.
+// September 2026. Every field is optional -- a missing one means "the source
+// provided none", not an error, and a hit without a URL is dropped rather than
+// failing the page -- and `snippet` is documented as "" for PDFs and short
+// pages, which the mapping below tolerates rather than dropping the row over.
 const PerplexityPage = Schema.Struct({
   title: Schema.optional(Schema.String),
-  url: Schema.String,
+  url: Schema.optional(Schema.String),
   snippet: Schema.optional(Schema.String),
   date: Schema.optional(Schema.NullOr(Schema.String)),
   last_updated: Schema.optional(Schema.NullOr(Schema.String)),
@@ -94,11 +94,14 @@ function parseSearchDate(value: string | undefined): number {
 
 function toResult(item: {
   title?: string | undefined
-  url: string
+  url?: string | undefined
   snippet?: string | undefined
   date?: string | null | undefined
   last_updated?: string | null | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page.
+  if (!item.url) return undefined
   // `date` is the publication date and `last_updated` the page's own revision;
   // both answer "when is this from", and OpenCode's result carries a single
   // slot, so the update date stands in when the page declares no publication
@@ -106,7 +109,7 @@ function toResult(item: {
   const published = parseSearchDate(item.date ?? item.last_updated ?? undefined)
   return {
     url: item.url,
-    // `url` is the one field the schema insists on, so it is also the one thing
+    // `url` is the one field the mapping insists on, so it is also the one thing
     // a title can fall back to rather than leave the result untitled.
     title: item.title || item.url,
     // `||`, not `??`: an empty snippet means Perplexity extracted nothing from
@@ -117,7 +120,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Perplexity charges per successful request, not per token: $5.00 per 1,000
 // requests for `web`, $1.00 for `fast`. A repeat query is a fresh billed
@@ -308,7 +311,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(PerplexityResponse)(json)
-            const results = (body.results ?? []).map(toResult)
+            const results = (body.results ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             // Perplexity charges per dispatch, so a response that never enters
             // the cache is a query paid for again on every repeat.

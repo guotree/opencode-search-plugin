@@ -12,7 +12,7 @@ const KeenableResponse = Schema.Struct({
     Schema.Array(
       Schema.Struct({
         title: Schema.optional(Schema.String),
-        url: Schema.String,
+        url: Schema.optional(Schema.String),
         description: Schema.optional(Schema.String),
         snippet: Schema.optional(Schema.String),
         published_at: Schema.optional(Schema.String),
@@ -77,11 +77,14 @@ function parseSearchDate(value: string | undefined): number {
 
 function toResult(item: {
   title?: string | undefined
-  url: string
+  url?: string | undefined
   description?: string | undefined
   snippet?: string | undefined
   published_at?: string | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page.
+  if (!item.url) return undefined
   const published = parseSearchDate(item.published_at)
   return {
     url: item.url,
@@ -94,7 +97,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()
@@ -300,7 +303,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(KeenableResponse)(json)
-            const results = (body.results ?? []).map(toResult)
+            const results = (body.results ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
             writeCache(queryKey, results)
             return results
           }),

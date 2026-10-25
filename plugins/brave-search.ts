@@ -10,8 +10,8 @@ const BraveResponse = Schema.Struct({
     Schema.Struct({
       results: Schema.Array(
         Schema.Struct({
-          title: Schema.String,
-          url: Schema.String,
+          title: Schema.optional(Schema.String),
+          url: Schema.optional(Schema.String),
           description: Schema.optional(Schema.String),
           page_age: Schema.optional(Schema.String),
         }),
@@ -88,21 +88,25 @@ function parseSearchDate(value: string | undefined): number {
 }
 
 function toResult(item: {
-  title: string
-  url: string
+  title?: string | undefined
+  url?: string | undefined
   description?: string | undefined
   page_age?: string | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page; a missing title falls back to the URL the
+  // way the other providers' mappings already do.
+  if (!item.url) return undefined
   const published = parseSearchDate(item.page_age)
   return {
     url: item.url,
-    title: item.title,
+    title: item.title || item.url,
     content: item.description ?? "",
     time: Number.isFinite(published) ? { published } : {},
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Brave bills per query and has no anonymous tier, so a repeat query is a fresh
 // billed dispatch. Responses are cached per normalized query. Knobs are read
@@ -270,7 +274,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(BraveResponse)(json)
-            const results = (body.web?.results ?? []).map(toResult)
+            const results = (body.web?.results ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             writeCache(queryKey, results)
             return results

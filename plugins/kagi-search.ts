@@ -14,8 +14,8 @@ const KagiResponse = Schema.Struct({
       search: Schema.optional(
         Schema.Array(
           Schema.Struct({
-            url: Schema.String,
-            title: Schema.String,
+            url: Schema.optional(Schema.String),
+            title: Schema.optional(Schema.String),
             snippet: Schema.optional(Schema.String),
             time: Schema.optional(Schema.String),
           }),
@@ -93,21 +93,25 @@ function parseSearchDate(value: string | undefined): number {
 }
 
 function toResult(item: {
-  url: string
-  title: string
+  url?: string | undefined
+  title?: string | undefined
   snippet?: string | undefined
   time?: string | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page; a missing title falls back to the URL the
+  // way the other providers' mappings already do.
+  if (!item.url) return undefined
   const published = parseSearchDate(item.time)
   return {
     url: item.url,
-    title: item.title,
+    title: item.title || item.url,
     content: item.snippet ?? "",
     time: Number.isFinite(published) ? { published } : {},
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Kagi bills per request with no anonymous tier and no free API credit: $12
 // per 1,000 search requests. Every dispatch is assumed billed, so a repeat
@@ -305,7 +309,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(KagiResponse)(json)
-            const results = (body.data?.search ?? []).map(toResult)
+            const results = (body.data?.search ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             writeCache(queryKey, results)
             return results

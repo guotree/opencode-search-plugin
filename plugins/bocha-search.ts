@@ -9,7 +9,7 @@ import { Effect, Schema, Stream } from "effect"
 // nullable, and one bad page must not fail the whole list.
 const BochaPage = Schema.Struct({
   name: Schema.optional(Schema.NullOr(Schema.String)),
-  url: Schema.String,
+  url: Schema.optional(Schema.NullOr(Schema.String)),
   snippet: Schema.optional(Schema.NullOr(Schema.String)),
   summary: Schema.optional(Schema.NullOr(Schema.String)),
   datePublished: Schema.optional(Schema.NullOr(Schema.String)),
@@ -116,17 +116,20 @@ function publishedAt(item: {
 
 function toResult(item: {
   name?: string | null | undefined
-  url: string
+  url?: string | null | undefined
   snippet?: string | null | undefined
   summary?: string | null | undefined
   datePublished?: string | null | undefined
   dateLastCrawled?: string | null | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page.
+  if (!item.url) return undefined
   const published = publishedAt(item)
   return {
     url: item.url,
     // Bocha always fills `name` in its examples, but the URL is the one field
-    // the schema insists on, so it is also the one thing a title can fall back
+    // the mapping insists on, so it is also the one thing a title can fall back
     // to rather than leave the result untitled.
     title: item.name ?? item.url,
     // `summary` is the generated abstract, present only when it was asked for
@@ -138,7 +141,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Bocha bills per search, at a tiered rate, so a repeat query is a dispatch
 // worth skipping. The knobs trade money for context: `BOCHA_SUMMARY` in
@@ -370,7 +373,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(BochaResponse)(json)
-            const results = (body.data?.webPages?.value ?? []).map(toResult)
+            const results = (body.data?.webPages?.value ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             writeCache(queryKey, results)
             return results

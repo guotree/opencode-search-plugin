@@ -4,7 +4,8 @@ import { Effect, Schema, Stream } from "effect"
 // Linkup returns { results: [...] } with no body-level error envelope: failures
 // are HTTP status codes only. Text and image results share one list; image
 // entries carry no content, so they are dropped on the way out. Every field is
-// optional -- a missing one means "the source provided none", not an error.
+// optional -- a missing one means "the source provided none", not an error,
+// and a hit without a URL is dropped rather than failing the whole page.
 //
 // `content` is a query-relevant excerpt, not the page -- the docs call it
 // "Extracted text content associated with the resource", and whole pages are
@@ -12,7 +13,7 @@ import { Effect, Schema, Stream } from "effect"
 // 4,395 characters, median near 2,000.
 const LinkupResult = Schema.Struct({
   name: Schema.optional(Schema.String),
-  url: Schema.String,
+  url: Schema.optional(Schema.String),
   content: Schema.optional(Schema.String),
   favicon: Schema.optional(Schema.String),
   type: Schema.optional(Schema.String),
@@ -45,7 +46,11 @@ function trimContent(text: string): string {
   return points.slice(0, CONTENT_CHARS).join("") + "…"
 }
 
-function toResult(item: typeof LinkupResult.Type) {
+function toResult(item: {
+  url: string
+  name?: string | undefined
+  content?: string | undefined
+}) {
   return {
     url: item.url,
     title: item.name || item.url,
@@ -264,7 +269,9 @@ export const effect = (ctx: Plugin.Context) =>
 
             const body = yield* Schema.decodeUnknownEffect(LinkupResponse)(json)
             const results = (body.results ?? []).flatMap((item) =>
-              item.url && item.type !== "image" ? [toResult(item)] : [],
+              item.url && item.type !== "image"
+                ? [toResult({ ...item, url: item.url })]
+                : [],
             )
 
             writeCache(queryKey, results)

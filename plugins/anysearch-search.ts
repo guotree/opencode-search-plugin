@@ -16,7 +16,7 @@ const AnySearchResponse = Schema.Struct({
         Schema.Array(
           Schema.Struct({
             title: Schema.optional(Schema.String),
-            url: Schema.String,
+            url: Schema.optional(Schema.String),
             snippet: Schema.optional(Schema.String),
             content: Schema.optional(Schema.String),
           }),
@@ -32,13 +32,16 @@ const AnySearchResponse = Schema.Struct({
 // with them, and with the opencode.db row keyed by integration ID.
 const ID = "osp-anysearch"
 
-// AnySearch returns no publication date, so results carry an empty time record.
+// AnySearch returns no publication date, so results carry an empty time
+// record. A hit without a URL cannot be opened or cited, so it is dropped
+// rather than failing the whole page.
 function toResult(item: {
   title?: string | undefined
-  url: string
+  url?: string | undefined
   snippet?: string | undefined
   content?: string | undefined
 }) {
+  if (!item.url) return undefined
   return {
     url: item.url,
     title: item.title || item.url,
@@ -47,7 +50,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()
@@ -285,7 +288,9 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const results = (body.data?.results ?? []).map(toResult)
+            const results = (body.data?.results ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
             writeCache(queryKey, results)
             return results
           }),

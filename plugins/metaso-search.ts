@@ -5,8 +5,8 @@ const MetasoResponse = Schema.Struct({
   webpages: Schema.optional(
     Schema.Array(
       Schema.Struct({
-        title: Schema.String,
-        link: Schema.String,
+        title: Schema.optional(Schema.String),
+        link: Schema.optional(Schema.String),
         snippet: Schema.optional(Schema.String),
         date: Schema.optional(Schema.String),
         rawContent: Schema.optional(Schema.String),
@@ -85,22 +85,26 @@ function parseSearchDate(value: string | undefined): number {
 // `rawContent` is the full source text when it was asked for, otherwise the
 // snippet stands in.
 function toResult(item: {
-  title: string
-  link: string
+  title?: string | undefined
+  link?: string | undefined
   snippet?: string | undefined
   date?: string | undefined
   rawContent?: string | undefined
 }) {
+  // A hit without a link cannot be opened or cited, so it is dropped rather
+  // than failing the whole page; a missing title falls back to the link the
+  // way the other providers' mappings already do.
+  if (!item.link) return undefined
   const published = parseSearchDate(item.date)
   return {
     url: item.link,
-    title: item.title,
+    title: item.title || item.link,
     content: item.rawContent ?? item.snippet ?? "",
     time: Number.isFinite(published) ? { published } : {},
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Metaso bills per search, not per result, which cuts two ways: a repeat query is
 // a search you can avoid paying for, and a fuller page of results costs exactly the
@@ -267,7 +271,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(MetasoResponse)(json)
-            const results = (body.webpages ?? []).map(toResult)
+            const results = (body.webpages ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             writeCache(queryKey, results)
             return results

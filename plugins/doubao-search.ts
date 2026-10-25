@@ -16,7 +16,7 @@ import { Effect, Schema, Stream } from "effect"
 // results to authoritative sources.
 const DoubaoWebResult = Schema.Struct({
   Title: Schema.optional(Schema.NullOr(Schema.String)),
-  Url: Schema.String,
+  Url: Schema.optional(Schema.NullOr(Schema.String)),
   Summary: Schema.optional(Schema.NullOr(Schema.String)),
   Snippet: Schema.optional(Schema.NullOr(Schema.String)),
   Content: Schema.optional(Schema.NullOr(Schema.String)),
@@ -143,17 +143,20 @@ function trimContent(text: string): string {
 
 function toResult(item: {
   Title?: string | null | undefined
-  Url: string
+  Url?: string | null | undefined
   Summary?: string | null | undefined
   Snippet?: string | null | undefined
   Content?: string | null | undefined
   PublishTime?: string | null | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page.
+  if (!item.Url) return undefined
   const published = publishedAt(item.PublishTime ?? undefined)
   return {
     url: item.Url,
     // The Custom version always fills `Title` in its examples, but the URL is
-    // the one field the schema insists on, so it is also the one thing a
+    // the one field the mapping insists on, so it is also the one thing a
     // title can fall back to rather than leave the result untitled.
     title: item.Title ?? item.Url,
     // `Content` is the full page body (with `Summary` the shorter form it
@@ -178,7 +181,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // Doubao bills per search (500 free per month per Volcengine account, shared
 // with the Global version), so a repeat query is a dispatch worth skipping.
@@ -490,7 +493,9 @@ export const effect = (ctx: Plugin.Context) =>
             }
 
             const body = yield* Schema.decodeUnknownEffect(DoubaoResponse)(json)
-            const results = (body.Result?.WebResults ?? []).map(toResult)
+            const results = (body.Result?.WebResults ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             writeCache(queryKey, results)
             return results

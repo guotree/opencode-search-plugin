@@ -14,7 +14,7 @@ const OllamaResponse = Schema.Struct({
     Schema.Array(
       Schema.Struct({
         title: Schema.optional(Schema.String),
-        url: Schema.String,
+        url: Schema.optional(Schema.String),
         content: Schema.optional(Schema.String),
       }),
     ),
@@ -48,14 +48,18 @@ function trimContent(text: string): string {
 }
 
 // Ollama returns no publication date, so results carry an empty time record.
+// A hit without a URL cannot be opened or cited, so it is dropped rather than
+// failing the whole page -- the schema keeps every field optional and this
+// guard is where the loss is decided.
 function toResult(item: {
   title?: string | undefined
-  url: string
+  url?: string | undefined
   content?: string | undefined
 }) {
+  if (!item.url) return undefined
   return {
     url: item.url,
-    // The URL is the one field the schema insists on, so it is also the one
+    // The URL is the one field the mapping insists on, so it is also the one
     // thing a title can fall back to rather than leave the result untitled.
     title: item.title || item.url,
     content: trimContent(item.content ?? ""),
@@ -63,7 +67,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()
@@ -260,7 +264,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(OllamaResponse)(json)
-            const results = (body.results ?? []).map(toResult)
+            const results = (body.results ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             writeCache(queryKey, results)
             return results

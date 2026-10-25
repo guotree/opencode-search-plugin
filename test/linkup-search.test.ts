@@ -44,6 +44,27 @@ describe("linkup-search", () => {
     })
   })
 
+  it("drops a hit without a URL instead of failing the page", async () => {
+    const { harness } = await bind()
+    const fetch = stubFetch(() =>
+      jsonResponse({
+        results: [
+          { name: "no url here", content: "half-formed hit" },
+          { name: "real", url: "https://example.com/a", content: "text" },
+          { url: "https://example.com/img", type: "image" },
+        ],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as unknown as HitResult[]
+
+    expect(fetch.calls).toHaveLength(1)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ url: "https://example.com/a", title: "real" })
+  })
+
   it("clamps LINKUP_MAX_RESULTS to the API's 1-100 range", async () => {
     const low = await bind({ LINKUP_MAX_RESULTS: "0" })
     const lowFetch = stubFetch(() => jsonResponse({ results: [] }))

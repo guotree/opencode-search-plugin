@@ -16,7 +16,7 @@ const DeepSeekResponse = Schema.Struct({
     Schema.Array(
       Schema.Struct({
         title: Schema.optional(Schema.String),
-        url: Schema.String,
+        url: Schema.optional(Schema.String),
         summary: Schema.optional(Schema.String),
         // RFC 3339 in UTC, or null when the publication time is unknown.
         date: Schema.optional(Schema.NullOr(Schema.String)),
@@ -91,10 +91,13 @@ function parseSearchDate(value: string | undefined): number {
 
 function toResult(item: {
   title?: string | undefined
-  url: string
+  url?: string | undefined
   summary?: string | undefined
   date?: string | null | undefined
 }) {
+  // A hit without a URL cannot be opened or cited, so it is dropped rather
+  // than failing the whole page.
+  if (!item.url) return undefined
   const published = parseSearchDate(item.date ?? undefined)
   return {
     url: item.url,
@@ -104,7 +107,7 @@ function toResult(item: {
   }
 }
 
-type SearchResult = ReturnType<typeof toResult>
+type SearchResult = NonNullable<ReturnType<typeof toResult>>
 
 // DeepSeek charges per successful search and has no anonymous tier. A repeat
 // query is a fresh billed dispatch, so responses are cached per normalized
@@ -263,7 +266,9 @@ export const effect = (ctx: Plugin.Context) =>
             })
 
             const body = yield* Schema.decodeUnknownEffect(DeepSeekResponse)(json)
-            const results = (body.results ?? []).map(toResult)
+            const results = (body.results ?? [])
+              .map(toResult)
+              .filter((result): result is SearchResult => result !== undefined)
 
             // DeepSeek charges per dispatch and does not bill failures or empty
             // results, so a hit that never enters the cache is a query paid for
