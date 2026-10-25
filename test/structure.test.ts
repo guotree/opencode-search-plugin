@@ -101,12 +101,46 @@ const EVENT_BLOCK = `    yield* Effect.forkScoped(
             event.type === "integration.updated",
         ),
         Stream.mapEffect(() =>
+          // One failed rebind must not kill the subscription: the next
+          // credential event still has to reach the reload. \`bound\` moves
+          // before the reload so the transforms it replays build with the
+          // new state, and rolls back when the reload dies so the next
+          // event retries the binding instead of treating it as done. A
+          // defect is named on stderr and the stream moves on; an
+          // interruption is teardown rather than failure, and catchDefect
+          // propagates it untouched so shutdown never waits behind a warning.
           Effect.gen(function* () {
             const next = Boolean(yield* resolveKey())
             if (next === bound) return
+            const previous = bound
             bound = next
-            yield* ctx.websearch.reload()
-          }),
+            yield* Effect.suspend(() => ctx.websearch.reload()).pipe(
+              Effect.catchDefect((defect) =>
+                Effect.sync(() => {
+                  bound = previous
+                  console.warn(
+                    "[opencode-search-plugin] " +
+                      ID +
+                      " failed to rebind: " +
+                      (defect instanceof Error ? defect.message : String(defect)),
+                  )
+                }),
+              ),
+            )
+          }).pipe(
+            // The credential read can die on its own (a host-side throw
+            // before any reload); the subscription survives that too.
+            Effect.catchDefect((defect) =>
+              Effect.sync(() =>
+                console.warn(
+                  "[opencode-search-plugin] " +
+                    ID +
+                    " failed to rebind: " +
+                    (defect instanceof Error ? defect.message : String(defect)),
+                ),
+              ),
+            ),
+          ),
         ),
         Stream.runDrain,
       ),

@@ -25,6 +25,13 @@ export interface HarnessOptions {
   credentialSequence?: ReadonlyArray<Credential | undefined>
   /** Events replayed to the plugin's subscription before the stream ends. */
   events?: ReadonlyArray<{ readonly type: string }>
+  /**
+   * How many of the first `websearch.reload()` calls die with a defect instead
+   * of running. Models a host-side fault mid-rebind: the subscription's event
+   * handler sees the defect, and what matters is whether later events still
+   * arrive.
+   */
+  reloadFailures?: number
   /** Passed through as `ctx.options`, which `index.ts` reads for `enable`/`disable`. */
   options?: Readonly<Record<string, unknown>>
 }
@@ -114,6 +121,7 @@ export function makeHarness(options: HarnessOptions = {}): Harness {
   let subscribed = false
 
   const events = options.events ?? []
+  let reloadFailures = options.reloadFailures ?? 0
   const websearchTransforms: Array<(editor: unknown) => void> = []
   const integrationTransforms: Array<(editor: unknown) => void> = []
 
@@ -158,15 +166,22 @@ export function makeHarness(options: HarnessOptions = {}): Harness {
           return { dispose: Effect.void }
         }),
       // Mirrors the real registry: a reload discards the built value and
-      // replays every active transform onto a fresh one.
+      // replays every active transform onto a fresh one. The first
+      // `reloadFailures` calls die with a defect instead, modelling a
+      // host-side fault mid-rebind.
       reload: () =>
-        Effect.sync(() => {
-          harness.reloads += 1
-          harness.providers.length = 0
-          for (const callback of websearchTransforms) {
-            callback(makeWebsearchEditor(harness))
-          }
-        }),
+        reloadFailures > 0
+          ? Effect.sync(() => {
+              reloadFailures -= 1
+              throw new Error("host reload fault")
+            })
+          : Effect.sync(() => {
+              harness.reloads += 1
+              harness.providers.length = 0
+              for (const callback of websearchTransforms) {
+                callback(makeWebsearchEditor(harness))
+              }
+            }),
       providers: () => Effect.succeed([]),
       query: () => Effect.succeed([]),
     },
