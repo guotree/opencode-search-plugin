@@ -35,7 +35,7 @@ function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()
   if (raw === "") return fallback
   const value = Number(raw)
-  return Number.isFinite(value) && value >= 0 ? value : fallback
+  return Number.isInteger(value) && value >= 0 ? value : fallback
 }
 
 // Search engines hand out dates in three flavours: relative ("28 minutes ago"),

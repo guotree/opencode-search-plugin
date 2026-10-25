@@ -24,7 +24,7 @@ const ENV_INT = `function envInt(name: string, fallback: number): number {
   const raw = (process.env[name] ?? "").trim()
   if (raw === "") return fallback
   const value = Number(raw)
-  return Number.isFinite(value) && value >= 0 ? value : fallback
+  return Number.isInteger(value) && value >= 0 ? value : fallback
 }`
 
 const ERROR_DETAIL_BLOCK = `const ERROR_DETAIL_CHARS = 300
