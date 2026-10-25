@@ -6,6 +6,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **One failed rebind no longer kills the rebind subscription** (the nineteen
+  credentialed providers). The credential-event handler ran bare inside
+  `Stream.runDrain`: a single host-side defect -- a throw while reading the
+  credential, or a `websearch.reload()` that died mid-replay -- terminated the
+  forked fiber silently, and that provider permanently stopped reacting to
+  credential changes until a process restart. The handler now recovers from
+  defects with a one-line stderr warning naming the provider, and `bound`
+  rolls back when the reload dies so the next credential event retries the
+  binding instead of treating it as done. The reload call is suspended so
+  synchronous throws share the same recovery path; even an `undefined`
+  defect rolls back and is reported. An interruption still propagates, so
+  teardown is never mistaken for a failed rebind. Covered by
+  `test/rebind-fault.test.ts`, whose harness `reloadFailures` option makes the
+  first N reloads die on cue.
+
+- **A malformed hit no longer fails the whole page** (eleven providers).
+  AnySearch, Bocha, Brave, DeepSeek, Doubao, Kagi, Keenable, Linkup, Metaso,
+  Ollama and Perplexity decoded each result with a required `url` (Brave,
+  Kagi and Metaso also a required `title`), so one half-formed row failed the
+  entire response through `Schema.decodeUnknownEffect`. All per-item fields
+  are now optional: a hit without a URL is dropped -- it cannot be opened,
+  cited, or read as a source -- and a missing title falls back to the URL the
+  way the ten providers that already tolerated this do. Linkup's mapping had
+  always filtered URL-less hits behind a guard its own schema made
+  unreachable; the schema now matches the comment that always claimed every
+  field was optional. Covered by `test/malformed-hit.test.ts` and a
+  Linkup-specific case.
+
+- **An error body is cut at 300 code points before it reaches the tool
+  result** (all twenty-one providers). A WAF or CDN interposing an HTML page
+  on a 4xx/5xx used to land whole in the `Error` message -- tens of
+  kilobytes of markup in the agent's context. Structured refusal messages are
+  extracted before the bound is applied, including the 401/403/429 branches.
+  The cut counts code points so no surrogate pair is sliced in half, and
+  marks only text that was actually truncated. Covered by
+  `test/error-detail.test.ts`; structure guards keep the helper identical
+  across all twenty-one files.
+
+### Changed
+
+- `Retry-After` is reported as seconds only when it is delay-seconds (bocha,
+  doubao, keenable, stepfun, zai, zhipu). RFC 9110 also allows an HTTP-date,
+  which the old unconditional `+"s"` rendered as "...GMTs"; a date-form value
+  is now quoted verbatim. Missing or blank headers produce no retry hint;
+  structure guards keep the helper identical across the six files.
+- `envInt`-read knobs take whole numbers only (all twenty-one). `BRAVE_NUM=8.5`
+  used to dispatch `count=8.5` because only finiteness was checked; a
+  fractional or negative value now falls back to the default. `1e1` and
+  `0x10` stay accepted -- `Number` whole-numbers them. Covered by
+  `test/envint.test.ts`.
+
 ## [4.4.0] - 2026-10-23
 
 ### Changed

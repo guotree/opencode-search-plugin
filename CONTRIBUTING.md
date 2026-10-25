@@ -30,12 +30,14 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
-| `envInt` / `envStr` | all twenty-one | Environment knobs read once at load time |
+| `envInt` / `envStr` | all twenty-one | Environment knobs read once at load time; `envInt` takes whole numbers only, so a fractional value falls back to the default instead of reaching the wire |
 | `EMPTY_RESULT_TTL` / cache Map / `cacheKey` / `readCache` / `writeCache` | all twenty-one | Repeat queries are billed dispatches; a hit refreshes recency, an empty result pins briefly |
+| `boundDetail` | all twenty-one | A WAF/CDN error page can run tens of kilobytes; the detail is cut at 300 code points before it reaches the tool result |
+| `retryHint` | bocha, doubao, keenable, stepfun, zai, zhipu | `Retry-After` is delay-seconds or an HTTP-date; only the seconds form earns its "s" |
 | `timedSignal` | all twenty-one | The host applies no deadline around `execute` |
 | `parseSearchDate` and its tables | bocha, brave, deepseek, doubao, kagi, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, zai, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap |
 | `soften` | all twenty-one | The host types the credential API's failure channel as `unknown` |
-| the `Effect.forkScoped` rebind subscription | all except anysearch, keenable | A rotated or deleted key must rebind the provider without a restart; the two keyless files bind at startup and never rebind |
+| the `Effect.forkScoped` rebind subscription | all except anysearch, keenable | A rotated or deleted key must rebind the provider without a restart; the two keyless files bind at startup and never rebind. One failed rebind is warned about and retried by the next event -- the subscription itself must survive a host-side defect |
 
 Files with no date field (anysearch, jina, linkup, ollama) must not carry `parseSearchDate`. The structure test asserts that too.
 
