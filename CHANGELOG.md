@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.4.1] - 2026-10-25
+
 ### Fixed
 
 - **One failed rebind no longer kills the rebind subscription** (the nineteen
@@ -675,7 +677,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.1...HEAD
+[4.4.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.0...v4.4.1
 [4.4.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.4.0
 [4.3.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.3.0
 [4.2.1]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.2.1
