@@ -6,6 +6,8 @@
 [![npm downloads](https://img.shields.io/npm/dm/opencode-search-plugin.svg)](https://www.npmjs.com/package/opencode-search-plugin)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+![opencode-search-plugin — 在终端中搜索网页。](assets/readme-hero.svg)
+
 **无需 API key，开箱即用的 OpenCode 网页搜索插件。**
 
 AnySearch 和 Keenable 支持免配置直接使用。其余 provider 仅在配置对应 API key 后才会激活，避免产生意外账单。

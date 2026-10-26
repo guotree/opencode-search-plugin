@@ -6,6 +6,8 @@
 [![npm downloads](https://img.shields.io/npm/dm/opencode-search-plugin.svg)](https://www.npmjs.com/package/opencode-search-plugin)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+![opencode-search-plugin — Search the web. Stay in your terminal.](assets/readme-hero.svg)
+
 **Web search for OpenCode that works out of the box, no API key required.**
 
 AnySearch and Keenable work immediately without any configuration. Other providers activate only when an API key is configured, ensuring you are not billed for unused services.
