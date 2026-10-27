@@ -211,7 +211,11 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 
 ## 配置
 
-配置项以环境变量形式在启动时加载。如修改了变量，需重启 OpenCode 方可生效。默认值均对齐上游 API 文档推荐。
+配置项以环境变量形式在启动时加载。如修改了变量，需重启 OpenCode 方可生效。默认值结合上游 API 行为，以及插件对结果大小和请求处理的选择；内容上限是可配置的预览长度，不是针对某个模型的安全阈值。
+
+搜索供应商与消费结果的模型相互独立：使用 Ollama 搜索不意味着运行本地模型，使用 Moonshot 搜索也不意味着模型拥有特定大小的上下文窗口。支持 `*_CONTENT_CHARS` 的供应商会按 Unicode 码点保留每条所选内容的开头，截断时追加 `…`；`0` 表示关闭该单条截断。截断发生在返回结果和写入缓存之前，不限制单次搜索的总输出、token 用量或响应下载与解析阶段的内存占用。标题、URL、结果条数和多次搜索还会增加上下文开销。目前插件没有聚合输出预算。
+
+**行为变更：** Jina、Moonshot 和 Moonshot CN 现在默认每条保留 4000 码点，摘要路径同样受限。已开启整页内容且需要本地不截断的用户，需将对应的 `*_CONTENT_CHARS` 设为 `0`。截断后的内容属于预览，可能遗漏页面中后部的相关段落。
 
 ### 通用配置（所有 Provider）
 
@@ -262,7 +266,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | `DOUBAO_AUTH_LEVEL` | 关 | `1`–`4` 表示只保留该信源权威等级的结果（`1` 为政府、央媒、高校与头部企业官网）；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `DOUBAO_TIME_RANGE` | — | 时间筛选：`OneDay`、`OneWeek`、`OneMonth` 或 `OneYear`；取值不在枚举内时告警并丢弃，而非静默忽略 |
 | `DOUBAO_CONTENT` | `full` | `full` 优先读取每条结果的整页正文，`snippet` 只保留查询相关摘录（实测约 600 字符，服务端截断）；取值不在枚举内时告警并丢弃，而非静默忽略 |
-| `DOUBAO_CONTENT_CHARS` | `2000` | 两种模式下每条内容保留的码点数（`0` 表示不截断）。OpenCode 不会截断工具输出，因此这是豆包输出进入 agent 上下文的唯一闸门 |
+| `DOUBAO_CONTENT_CHARS` | `2000` | 两种模式下每条所选内容从开头保留的码点数（`0` 表示不截断），属于单条预览上限 |
 
 搜索走火山引擎豆包搜索的 Custom 版（为 AI Agent 构建的搜索 API，`POST open.feedcoopapi.com/search_api/web_search`，密钥从[豆包搜索控制台](https://console.volcengine.com/search-infinity/web-search-exp)获取）。按搜索次数计费，每个火山引擎账号每月享有 500 次免费额度，因此每次请求都按计费对待，相同查询复用共享缓存。本插件只发送能对照 API 参考文档核实的参数：查询词、`SearchType: "web"` 与 `Count`；每条结果的整页正文（数千字，同门 Global 版只返回短摘要）无需请求即会返回。Global 版与 Custom 版共用同一个 API Key 和免费额度，但使用另一套 snake_case 协议、固定返回 10 条并带有逐条 token 计数——本插件目前只接入 Custom 版。
 
@@ -272,7 +276,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | --- | --- | --- |
 | `JINA_NUM` | `0` | 每次搜索的结果数（1–100）。`0` 表示不传递该参数，以保留 Jina 更快且类型更全的结果 |
 | `JINA_INCLUDE_CONTENT` | 关 | `true` 表示返回每条结果的整页 markdown，并按 `JINA_CONTENT_CHARS` 截断，大幅增加上下文与计费 token |
-| `JINA_CONTENT_CHARS` | `4000` | 每条结果 `content` 保留的码点数（`0` 表示全部保留）。开启 `JINA_INCLUDE_CONTENT` 时生效，摘要路径同样受此上限约束；OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一闸门 |
+| `JINA_CONTENT_CHARS` | `4000` | 每条所选内容从开头保留的码点数（`0` 表示不截断）。整页内容和摘要两种路径均受此上限约束 |
 | `JINA_GL` / `JINA_HL` | — | 国家 / 语言代码 |
 | `JINA_LOCATION` | — | 模拟的城市级地理位置，例如 `Berlin` |
 | `JINA_TIMEOUT` | `25000`（开启 `JINA_INCLUDE_CONTENT` 时为 `60000`） | 请求超时毫秒数；整页抓取模式下使用更长的默认超时时间 |
@@ -302,10 +306,10 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `LINKUP_DEPTH` | `fast` | 推理深度：`flash`、`fast`、`standard` 或 `deep`；取值不在枚举内时告警并丢弃，而非静默忽略。深度换来的是召回与延迟，不是文本量：实测三档的摘录长度相当 |
-| `LINKUP_MAX_RESULTS` | `10` | 每次搜索的结果数，限制在 1–100。API 无论请求多少最多只返回 20 条（50 与 200 都返回 20），因此该限制只用于防误填 |
-| `LINKUP_CONTENT_CHARS` | `4000` | 每条结果 `content` 保留的码点数（`0` 表示全部保留）。OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一预算闸门 |
+| `LINKUP_MAX_RESULTS` | `10` | 每次搜索请求的结果数，限制在 1–100。已有测试中请求 50 和 200 条均返回 20 条；这一观察不代表本地强制限制了返回条数 |
+| `LINKUP_CONTENT_CHARS` | `4000` | 每条查询相关摘录从开头保留的码点数（`0` 表示不截断），属于单条预览上限 |
 
-`content` 是与查询相关的摘录而非整页——85 条实测命中为 375 到 4,395 字符，中位约 2,000——因此 `LINKUP_CONTENT_CHARS` 取在该区间的顶端，只削去尾部而非答案本身。`outputType` 保持 `searchResults`：`sourcedAnswer` 只是在源摘录之上多加一段 AI 答案，而那些 `snippet` 与 `results[].content` 是同一份文本（实测长度完全相同），OpenCode 的结果结构里也没有存放答案的字段。服务端同样没有长度控制——未文档化参数会被接受并忽略。
+`content` 是与查询相关的摘录而非整页——85 条实测命中为 375 到 4,395 字符，中位约 2,000。默认 4000 码点接近该观测区间的上端，但截断仍可能遗漏相关内容，不能保证答案完整。`outputType` 保持 `searchResults`：`sourcedAnswer` 只是在源摘录之上多加一段 AI 答案，而那些 `snippet` 与 `results[].content` 是同一份文本（实测长度完全相同），OpenCode 的结果结构里也没有存放答案的字段。服务端同样没有长度控制——未文档化参数会被接受并忽略。
 
 ### Metaso
 
@@ -320,7 +324,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | --- | --- | --- |
 | `MOONSHOT_COUNT` | `5` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
 | `MOONSHOT_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要，并按 `MOONSHOT_CONTENT_CHARS` 截断；搜索费用不变，但会大幅消耗上下文 token |
-| `MOONSHOT_CONTENT_CHARS` | `4000` | 读取每条结果正文时保留的码点数（`0` 表示全部保留）。默认 5 条结果时单次搜索约 2 万字符；摘要路径同样受此上限约束，且 OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一闸门 |
+| `MOONSHOT_CONTENT_CHARS` | `4000` | 每条所选内容从开头保留的码点数（`0` 表示不截断）。整页正文和摘要两种路径均受此上限约束，属于单条预览上限 |
 
 此 Provider 为月之暗面国际站（[platform.kimi.ai](https://platform.kimi.ai)），密钥从 [platform.kimi.ai 控制台](https://platform.kimi.ai/console/api-keys) 获取，搜索端点为 `api.moonshot.ai/v1/tools/search`。每次成功搜索 0.002 美元，且仅当响应包含至少一条结果时计费——失败与空结果不计费，重复查询走共享缓存。无免 key 匿名层级，因此仅在配置了密钥时加入搜索池。
 
@@ -336,7 +340,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | --- | --- | --- |
 | `MOONSHOT_CN_COUNT` | `5` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
 | `MOONSHOT_CN_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要，并按 `MOONSHOT_CN_CONTENT_CHARS` 截断；搜索费用不变，但会大幅消耗上下文 token |
-| `MOONSHOT_CN_CONTENT_CHARS` | `4000` | 读取每条结果正文时保留的码点数（`0` 表示全部保留）。默认 5 条结果时单次搜索约 2 万字符；摘要路径同样受此上限约束，且 OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一闸门 |
+| `MOONSHOT_CN_CONTENT_CHARS` | `4000` | 每条所选内容从开头保留的码点数（`0` 表示不截断）。整页正文和摘要两种路径均受此上限约束，属于单条预览上限 |
 
 此 Provider 为月之暗面国内站（[platform.kimi.com](https://platform.kimi.com)），密钥从 [platform.kimi.com 控制台](https://platform.kimi.com/console/api-keys) 获取，搜索端点为 `api.moonshot.cn/v1/tools/search`。每次成功搜索 0.01 元，且仅当响应包含至少一条结果时计费——失败与空结果不计费，重复查询走共享缓存。请求与映射逻辑与上节国际站完全一致，包括按累计充值分档的搜索 QPS（Tier0 为 1，最高 50）。
 
@@ -347,9 +351,9 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `OLLAMA_MAX_RESULTS` | `5` | 每次搜索的结果数，限制在 1–10（API 上限）。每条结果的 `content` 是整页正文而非摘要，因此条数会与下面的单条预算相乘 |
-| `OLLAMA_CONTENT_CHARS` | `2000` | 每条结果 `content` 保留的码点数（`0` 表示全部保留）。OpenCode 不会截断工具输出，因此这是 Ollama 输出进入 agent 上下文的唯一闸门 |
+| `OLLAMA_CONTENT_CHARS` | `2000` | 每条页面正文从开头保留的码点数（`0` 表示不截断），属于单条预览上限 |
 
-Ollama 官方文档将 `content` 描述为「网页的相关内容片段」。实测并非如此：对线上 API 实测，`content` 就是整页正文，且与同一 URL 的 `web_fetch` 返回**逐字相同**。四组查询共 20 条结果，长度从 348 到 208,805 字符（中位约 10,000），其中 17 条超过 2000 的默认预算。API 不提供任何减少返回量的手段（未文档化参数会被接受并静默忽略），因此上面的预算是唯一闸门。它也是可恢复的：既然 `content` 与 `web_fetch` 返回同一份文本，agent 需要正文其余部分时可另行抓取。Ollama 自己的 agent 示例也在模型读取前把搜索输出截断到 8000 字符。
+Ollama 官方文档将 `content` 描述为「网页的相关内容片段」。已有线上 API 测试中，它实际包含整页正文，且与同一 URL 的 `web_fetch` 返回相同。四组查询共 20 条结果，长度从 348 到 208,805 字符（中位约 10,000），其中 17 条超过 2000 的默认值。这支持为页面预览设置限制，但不能证明 2000 是最优阈值。测试中未发现服务端内容长度控制方式——未文档化参数被接受并静默忽略——因此插件在本地截断返回文本。如果宿主提供页面抓取工具，agent 可以尝试从源 URL 获取更多内容，但不保证与搜索供应商返回的内容一致。Ollama 自己的 agent 示例也在模型读取前把搜索输出截断到 8000 字符。
 
 ### Perplexity
 
@@ -393,7 +397,7 @@ Ollama 官方文档将 `content` 描述为「网页的相关内容片段」。�
 | `STEPFUN_COUNT` | `10` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
 | `STEPFUN_CATEGORY` | — | 场景偏好：`programming`、`research`、`gov` 或 `business`。不设置时检索全部场景（API 默认行为）；填写未知值时会输出警告并丢弃，而不是发送出去换来一个 400 |
 | `STEPFUN_INCLUDE_CONTENT` | 关 | `true` 时返回每条结果的整页 `content` 正文而非摘要。正文无论如何都会随响应返回——此项只决定是否把它花在上下文 token 上 |
-| `STEPFUN_CONTENT_CHARS` | `4000` | 读取正文时保留的码点数（`0` 表示全部保留）。按码点计数，因此不会把 emoji 截成半个 |
+| `STEPFUN_CONTENT_CHARS` | `4000` | 选用页面正文时从开头保留的码点数，包括摘要为空时回退到正文的情况（`0` 表示不截断）。摘要本身不截断；截断不会拆开 Unicode 代理对 |
 
 阶跃星辰只有国内站提供搜索接口：[platform.stepfun.com](https://platform.stepfun.com/interface-key) 的 `POST api.stepfun.com/v1/search`，每次 0.04 元。国际站没有对应接口（`api.stepfun.ai/v1/search` 返回 404，而其对话接口正常），因此不存在第二个可绑定的 provider——与月之暗面两站并存的情况不同。
 

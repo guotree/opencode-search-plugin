@@ -6,14 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-10-27
+
 > **Behavior change:** Moonshot, Moonshot CN and Jina now cut each hit's body
 > to `*_CONTENT_CHARS` code points whenever content is read, so the result and
 > the cache hold an already-clipped page. A configuration that explicitly sets
 > `<PROVIDER>_INCLUDE_CONTENT` (`MOONSHOT_INCLUDE_CONTENT`,
 > `MOONSHOT_CN_INCLUDE_CONTENT`, `JINA_INCLUDE_CONTENT`) and needs the whole
 > page must now opt out with `<PROVIDER>_CONTENT_CHARS=0`; the default is no
-> longer "everything the vendor returned". Every other configuration behaves
-> as before.
+> longer "everything the vendor returned". The same per-hit limit also applies
+> to snippets, even when full-page content is disabled.
 
 ### Fixed
 
@@ -25,15 +27,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `MOONSHOT_CONTENT_CHARS`, `MOONSHOT_CN_CONTENT_CHARS` and
   `JINA_CONTENT_CHARS` (all default `4000`) now cut each body to code points
   before the result is returned and therefore before `writeCache` stores it;
-  `0` keeps the whole body. For Moonshot's default five results that bounds one
-  search at roughly 20k characters (5k-8k tokens) while keeping the article's
-  core argument in view. The cut counts code points, so no surrogate pair is
-  sliced, and the trailing ellipsis says the body was clipped.
+  `0` disables this per-hit truncation. The limit produces a preview that may
+  omit relevant passages; it does not cap total search output, token usage,
+  or response download and parsing memory. The cut counts code points, so no
+  surrogate pair is sliced, and the trailing ellipsis marks clipped content.
   `test/structure.test.ts` asserts the shared `trimContent` block, that every
   listed file applies it, and that files with no full-page body carry no
   `CONTENT_CHARS` knob. Each provider's test covers the default, `0`, surrogate
   pairs, and the cached copy. Metaso (`rawContent`) and You.com (`full_page`)
   can return whole pages too and are not covered by this change.
+
+### Changed
+
+- Both READMEs now distinguish per-hit previews from total output budgets,
+  explain that search providers are independent of the consuming model, and
+  qualify observations from the recorded Ollama and Linkup samples.
 
 ## [4.4.1] - 2026-10-25
 
@@ -706,7 +714,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.1...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.5.0...HEAD
+[4.5.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.1...v4.5.0
 [4.4.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.0...v4.4.1
 [4.4.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.4.0
 [4.3.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.3.0

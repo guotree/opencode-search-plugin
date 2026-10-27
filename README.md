@@ -211,7 +211,11 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 
 ## Configuration
 
-Configuration options are loaded as environment variables on startup. If you change a setting, restart OpenCode for it to take effect. Default values align with upstream API documentation recommendations.
+Configuration options are loaded as environment variables on startup. If you change a setting, restart OpenCode for it to take effect. Defaults reflect upstream API behavior and plugin choices for result size and request handling; content limits are configurable preview sizes, not model-specific safety thresholds.
+
+Search providers work independently of the model consuming their results: choosing Ollama search does not imply a local model, and choosing Moonshot search does not imply a particular context window. Where supported, `*_CONTENT_CHARS` limits the beginning of each selected content field in Unicode code points, with `…` appended when truncated. `0` disables that per-hit truncation. These limits apply before results are returned and cached; they do not cap total search output, token usage, or response download and parsing memory. Titles, URLs, result counts and repeated searches add further context cost. The plugin currently has no aggregate output budget.
+
+**Behavior change:** Jina, Moonshot and Moonshot CN now default to 4,000 code points per hit, including the snippet path. Users who enabled full-page content and need it without local truncation must set the corresponding `*_CONTENT_CHARS` to `0`. Truncated content is a preview and may omit relevant passages later in the page.
 
 ### Shared by every provider
 
@@ -262,7 +266,7 @@ Configuration options are loaded as environment variables on startup. If you cha
 | `DOUBAO_AUTH_LEVEL` | `off` | `1`–`4` keeps only results at that source-authority level (`1` is government, state media, universities and major company official sites); an unknown value is reported and dropped rather than silently ignored |
 | `DOUBAO_TIME_RANGE` | — | Freshness filter: `OneDay`, `OneWeek`, `OneMonth` or `OneYear`; an unknown value is reported and dropped rather than silently ignored |
 | `DOUBAO_CONTENT` | `full` | `full` reads each hit's page body, `snippet` keeps only the query-relevant excerpt (roughly 600 characters, cut server-side); an unknown value is reported and dropped rather than silently ignored |
-| `DOUBAO_CONTENT_CHARS` | `2000` | Code points kept from each hit's content in either mode (`0` keeps all of it). OpenCode never truncates a tool result, so this is the only bound between Doubao's output and the agent's context |
+| `DOUBAO_CONTENT_CHARS` | `2000` | Code points kept from the beginning of each hit's selected content in either mode (`0` disables truncation); a per-hit preview limit |
 
 Searches run through the Custom version of Doubao Search, Volcengine's search API built for AI agents (`POST open.feedcoopapi.com/search_api/web_search`, keys from the [Doubao Search console](https://console.volcengine.com/search-infinity/web-search-exp)). Billing is per search with 500 free searches per month per Volcengine account, so every dispatch is assumed billed and repeat queries ride the shared cache. This provider sends only what it can verify against the API reference: the query, `SearchType: "web"` and `Count`; the full page body (thousands of characters, where the sibling Global version returns a short snippet) comes back without asking for it. The Global version shares the same API key and free quota but speaks a different, snake_case protocol with a fixed 10 results and per-result token counts -- only the Custom version is wired up here.
 
@@ -272,7 +276,7 @@ Searches run through the Custom version of Doubao Search, Volcengine's search AP
 | --- | --- | --- |
 | `JINA_NUM` | `0` | Results per search (1–100). `0` omits the parameter, preserving Jina's faster and broader result types |
 | `JINA_INCLUDE_CONTENT` | `off` | `true` returns full-page markdown per hit, cut to `JINA_CONTENT_CHARS`; significantly increasing context and billed tokens |
-| `JINA_CONTENT_CHARS` | `4000` | Code points kept from each hit's `content` (`0` keeps all of it). Applies with `JINA_INCLUDE_CONTENT` on and to the snippet path; OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
+| `JINA_CONTENT_CHARS` | `4000` | Code points kept from the beginning of each hit's selected content (`0` disables truncation). Applies to both full-page content and snippets |
 | `JINA_GL` / `JINA_HL` | — | Country / language code |
 | `JINA_LOCATION` | — | Simulated city-level location, e.g., `Berlin` |
 | `JINA_TIMEOUT` | `25000` (`60000` with `JINA_INCLUDE_CONTENT`) | Request timeout in milliseconds; full-page fetching uses a higher default timeout |
@@ -302,10 +306,10 @@ Searches run through Kagi's v1 API (`POST kagi.com/api/v1/search`, keys from [ka
 | Variable | Default | Description |
 | --- | --- | --- |
 | `LINKUP_DEPTH` | `fast` | Search depth: `flash`, `fast`, `standard`, or `deep`; an unknown value is reported and dropped rather than silently ignored. Depth buys recall and latency, not text: the three returned the same excerpt lengths when measured |
-| `LINKUP_MAX_RESULTS` | `10` | Results per search, clamped to 1–100. The API answers with at most 20 whatever is asked for (50 and 200 both return 20), so the clamp only guards a typo |
-| `LINKUP_CONTENT_CHARS` | `4000` | Code points kept from each hit's `content` (`0` keeps all of it). OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
+| `LINKUP_MAX_RESULTS` | `10` | Requested results per search, clamped to 1–100. Recorded tests requesting 50 and 200 both returned 20; this observation is not a local result-count limit |
+| `LINKUP_CONTENT_CHARS` | `4000` | Code points kept from the beginning of each hit's query-relevant excerpt (`0` disables truncation); a per-hit preview limit |
 
-`content` is a query-relevant excerpt, not the page -- 375 to 4,395 characters across 85 measured hits, median near 2,000 -- so `LINKUP_CONTENT_CHARS` sits at the top of that range and trims the tail rather than the answer. `outputType` stays `searchResults`: `sourcedAnswer` would add an AI answer on top of source snippets that are the same text `results[].content` already holds (the lengths came back identical), and OpenCode's result shape has no field for an answer to live in. There is no server-side length control either -- unknown parameters are accepted and ignored.
+`content` is a query-relevant excerpt, not the page -- 375 to 4,395 characters across 85 measured hits, median near 2,000. The 4,000-code-point default is near the upper end of that observed range; it can still omit relevant text and does not guarantee answer completeness. `outputType` stays `searchResults`: `sourcedAnswer` would add an AI answer on top of source snippets that are the same text `results[].content` already holds (the lengths came back identical), and OpenCode's result shape has no field for an answer to live in. There is no server-side length control either -- unknown parameters are accepted and ignored.
 
 ### Metaso
 
@@ -320,7 +324,7 @@ Searches run through Kagi's v1 API (`POST kagi.com/api/v1/search`, keys from [ka
 | --- | --- | --- |
 | `MOONSHOT_COUNT` | `5` | Results per search, clamped to 1–20 (the API's range and default) |
 | `MOONSHOT_INCLUDE_CONTENT` | `off` | `true` sends `include_content` and reads each hit's full-page `text` instead of its snippet, cut to `MOONSHOT_CONTENT_CHARS`; billed the same per search, but substantially increases context tokens |
-| `MOONSHOT_CONTENT_CHARS` | `4000` | Code points kept from each hit's body when content is read (`0` keeps all of it). At the default five results one search stays near 20k characters; the snippet path is cut by the same bound, and OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
+| `MOONSHOT_CONTENT_CHARS` | `4000` | Code points kept from the beginning of each hit's selected content (`0` disables truncation). Applies to both full-page text and snippets; a per-hit preview limit |
 
 This is Moonshot's international site ([platform.kimi.ai](https://platform.kimi.ai)), with keys from [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) and the Basic search endpoint at `api.moonshot.ai/v1/tools/search`. Billing is $0.002 per successful search, and only when the response carries at least one result -- failed and empty searches are free, and repeat queries ride the shared cache. There is no anonymous tier, so the provider binds only while a key exists.
 
@@ -336,7 +340,7 @@ The cn site ([platform.kimi.com](https://platform.kimi.com)) is a separate accou
 | --- | --- | --- |
 | `MOONSHOT_CN_COUNT` | `5` | Results per search, clamped to 1–20 (the API's range and default) |
 | `MOONSHOT_CN_INCLUDE_CONTENT` | `off` | `true` sends `include_content` and reads each hit's full-page `text` instead of its snippet, cut to `MOONSHOT_CN_CONTENT_CHARS`; billed the same per search, but substantially increases context tokens |
-| `MOONSHOT_CN_CONTENT_CHARS` | `4000` | Code points kept from each hit's body when content is read (`0` keeps all of it). At the default five results one search stays near 20k characters; the snippet path is cut by the same bound, and OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
+| `MOONSHOT_CN_CONTENT_CHARS` | `4000` | Code points kept from the beginning of each hit's selected content (`0` disables truncation). Applies to both full-page text and snippets; a per-hit preview limit |
 
 This is Moonshot's cn site ([platform.kimi.com](https://platform.kimi.com)), with keys from [platform.kimi.com](https://platform.kimi.com/console/api-keys) and the Basic search endpoint at `api.moonshot.cn/v1/tools/search`. Billing is ¥0.01 per successful search, and only when the response carries at least one result -- failed and empty searches are free, and repeat queries ride the shared cache. The request, mapping, and filter story are identical to the international site above, including the recharge-tiered search QPS (1 at Tier0, rising to 50).
 
@@ -347,9 +351,9 @@ The international site ([platform.kimi.ai](https://platform.kimi.ai)) is a separ
 | Variable | Default | Description |
 | --- | --- | --- |
 | `OLLAMA_MAX_RESULTS` | `5` | Results per search, clamped to 1–10 (API maximum). Each result's `content` is a page body rather than a snippet, so the count multiplies with the per-hit budget below |
-| `OLLAMA_CONTENT_CHARS` | `2000` | Code points kept from each hit's `content` (`0` keeps all of it). OpenCode never truncates a tool result, so this is the only bound between Ollama's output and the agent's context |
+| `OLLAMA_CONTENT_CHARS` | `2000` | Code points kept from the beginning of each hit's page body (`0` disables truncation); a per-hit preview limit |
 
-Ollama's docs describe `content` as "a relevant content snippet from the web page". It is not: measured against the live API, `content` is the whole page and comes back byte-identical to what `web_fetch` returns for the same URL. Across 20 hits from four queries it ranged from 348 to 208,805 characters (median around 10,000), and 17 of the 20 exceeded the 2,000 default. The API offers no way to ask for less -- unknown parameters are accepted and silently ignored -- so the budget above is the only bound. It is also a recoverable one: since `content` is the same text `web_fetch` returns, an agent that needs the rest of a page can fetch it. Ollama's own agent example cuts the search output to 8,000 characters before the model reads it.
+Ollama's docs describe `content` as "a relevant content snippet from the web page". In recorded live API tests, it instead contained whole-page text matching `web_fetch` output for the same URL. Across 20 hits from four queries it ranged from 348 to 208,805 characters (median around 10,000), and 17 of the 20 exceeded the 2,000 default. This supports limiting page previews, but does not establish 2,000 as an optimal threshold. No server-side content-length control was found in those tests -- unknown parameters were accepted and silently ignored -- so the plugin truncates the returned text locally. If a page-fetch tool is available, an agent can try to retrieve more from the source URL; it may not reproduce the search provider's content. Ollama's own agent example cuts the search output to 8,000 characters before the model reads it.
 
 ### Perplexity
 
@@ -393,7 +397,7 @@ There is intentionally no result-count configuration: Google deprecated the `num
 | `STEPFUN_COUNT` | `10` | Results per search, clamped to 1–20 (the API's range and default) |
 | `STEPFUN_CATEGORY` | — | Scenario bias: `programming`, `research`, `gov`, or `business`. Unset searches every scenario, which is the API's default; an unknown value is reported and dropped rather than sent to earn a 400 |
 | `STEPFUN_INCLUDE_CONTENT` | `off` | `true` returns each hit's full-page `content` instead of its snippet. The body is in every response either way — this only decides whether it is spent on context tokens |
-| `STEPFUN_CONTENT_CHARS` | `4000` | Code points kept from `content` when it is read (`0` keeps all of it). Counted in code points, so no emoji is ever cut in half |
+| `STEPFUN_CONTENT_CHARS` | `4000` | Code points kept from the beginning of the page body when selected, including fallback from an empty snippet (`0` disables truncation). Snippets are not truncated; Unicode surrogate pairs are preserved |
 
 StepFun's cn platform ([platform.stepfun.com](https://platform.stepfun.com/interface-key)) serves the only search endpoint: `POST api.stepfun.com/v1/search`, billed ¥0.04 per search. The international host has no equivalent (`api.stepfun.ai/v1/search` answers 404 while its chat endpoint does not), so there is no second provider to bind — unlike Moonshot's two sites.
 
