@@ -92,6 +92,84 @@ describe("moonshot-search", () => {
     expect(results.map((r) => r.content)).toEqual(["# the full body", "just this"])
   })
 
+  it("cuts the full page body to MOONSHOT_CONTENT_CHARS code points, defaulting to 4000", async () => {
+    const { harness } = await bind({ MOONSHOT_INCLUDE_CONTENT: "true" })
+    stubFetch(() =>
+      jsonResponse({
+        search_results: [
+          { title: "Long", url: "https://example.com/long", text: "a".repeat(5000) },
+        ],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    // 4000 matches Jina's and StepFun's default, and the ellipsis says the
+    // body was clipped rather than that it ended there.
+    expect(results[0]!.content).toBe("a".repeat(4000) + "…")
+  })
+
+  it("keeps the whole body with MOONSHOT_CONTENT_CHARS=0", async () => {
+    const { harness } = await bind({
+      MOONSHOT_INCLUDE_CONTENT: "true",
+      MOONSHOT_CONTENT_CHARS: "0",
+    })
+    stubFetch(() =>
+      jsonResponse({
+        search_results: [
+          { title: "Long", url: "https://example.com/long", text: "a".repeat(5000) },
+        ],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    expect(results[0]!.content).toBe("a".repeat(5000))
+  })
+
+  it("cuts on code points, never slicing a surrogate pair", async () => {
+    const { harness } = await bind({
+      MOONSHOT_INCLUDE_CONTENT: "true",
+      MOONSHOT_CONTENT_CHARS: "10",
+    })
+    stubFetch(() =>
+      jsonResponse({
+        search_results: [
+          { title: "Emoji", url: "https://example.com/emoji", text: "😀".repeat(20) },
+        ],
+      }),
+    )
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    expect(results[0]!.content).toBe("😀".repeat(10) + "…")
+  })
+
+  it("caches the truncated body, so a repeat query cannot repay the context", async () => {
+    const { harness } = await bind({ MOONSHOT_INCLUDE_CONTENT: "true" })
+    const fetch = stubFetch(() =>
+      jsonResponse({
+        search_results: [
+          { title: "Long", url: "https://example.com/long", text: "a".repeat(5000) },
+        ],
+      }),
+    )
+
+    const provider = harness.providers[0]!
+    const first = (await harness.run(provider.execute({ query: "q" }))) as HitResult[]
+    const second = (await harness.run(provider.execute({ query: "q" }))) as HitResult[]
+
+    expect(fetch.calls).toHaveLength(1)
+    expect(first[0]!.content).toBe("a".repeat(4000) + "…")
+    expect(second[0]!.content).toBe(first[0]!.content)
+  })
+
   it("maps a hit, reading text over snippet and date as the bare date it is", async () => {
     const { harness } = await bind()
     stubFetch(() =>

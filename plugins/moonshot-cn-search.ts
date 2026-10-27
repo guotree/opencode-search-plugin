@@ -104,6 +104,27 @@ function parseSearchDate(value: string | undefined): number {
   return ABSOLUTE_DATE.some((shape) => shape.test(text)) ? Date.parse(text) : NaN
 }
 
+// `text` is the full page body when `include_content` was sent -- a crawl can
+// return tens of kilobytes per hit, and the body arrives whether or not the
+// caller reads it -- so the chosen field is cut to CONTENT_CHARS code points
+// before it can reach the agent. The snippet path runs through the same cut:
+// it is short today, but the bound should not depend on that.
+//
+// The cut counts code points, never UTF-16 units, so no surrogate pair is
+// sliced in half; the trailing ellipsis tells the model the body was clipped
+// rather than that it ended there.
+//
+// The UTF-16 length check comes first because it is O(1) and can only
+// over-estimate the code-point count: a body already inside the budget skips
+// the spread entirely, which matters when a response carries twenty full pages
+// the caller never reads.
+function trimContent(text: string): string {
+  if (CONTENT_CHARS <= 0 || text.length <= CONTENT_CHARS) return text
+  const points = [...text]
+  if (points.length <= CONTENT_CHARS) return text
+  return points.slice(0, CONTENT_CHARS).join("") + "…"
+}
+
 // `date` is the only time field in a hit, and it is a bare calendar date in
 // the documented example -- parsed by the shared block above, and left as no
 // `time` at all when absent, empty, or unparseable.
@@ -128,8 +149,9 @@ function toResult(item: {
     // sent; `snippet` is the excerpt otherwise, and reads as "" when the
     // crawl found neither. `||`, not `??`: an empty string means there was
     // nothing worth reading, and an empty string is not an answer worth
-    // handing the agent.
-    content: item.text || item.snippet || "",
+    // handing the agent. Whatever is chosen is cut to CONTENT_CHARS first, so
+    // a full-page crawl cannot spend the context the knob was meant to save.
+    content: trimContent(item.text || item.snippet || ""),
     time: Number.isFinite(published) ? { published } : {},
   }
 }
@@ -161,6 +183,9 @@ function boundDetail(detail: string): string {
 //                                range; 5 is the API's own default)
 //   MOONSHOT_CN_INCLUDE_CONTENT  true sends `include_content` and reads each
 //                                hit's full-page `text` instead of its snippet
+//   MOONSHOT_CN_CONTENT_CHARS    code points kept from the body when content is
+//                                read (0 keeps all of it). The snippet path is
+//                                cut by the same bound
 //   MOONSHOT_CN_TIMEOUT          ms to wait before failing (0 removes the deadline)
 //   OSP_MOONSHOT_CN_API_KEY      required; from https://platform.kimi.com/console/api-keys
 const CACHE_TTL = envInt("MOONSHOT_CN_CACHE_TTL", 600_000)
@@ -169,6 +194,12 @@ const CACHE_TTL = envInt("MOONSHOT_CN_CACHE_TTL", 600_000)
 const SEARCH_TIMEOUT = envInt("MOONSHOT_CN_TIMEOUT", 25_000)
 const COUNT = Math.min(Math.max(envInt("MOONSHOT_CN_COUNT", 5), 1), 20)
 const INCLUDE_CONTENT = envStr("MOONSHOT_CN_INCLUDE_CONTENT") === "true"
+// 4000 code points per hit keeps five results within roughly 20k characters
+// (5k-8k tokens), which modern context windows absorb comfortably while
+// leaving the article's core argument in view. It clips whole pages, not
+// answers: `text` is the same page web_fetch returns, so an agent that needs
+// the rest can fetch it. 0 reads every body whole.
+const CONTENT_CHARS = envInt("MOONSHOT_CN_CONTENT_CHARS", 4_000)
 
 // One endpoint, one account system. The key comes from
 // https://platform.kimi.com, and the international site's key is a separate

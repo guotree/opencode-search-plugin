@@ -107,6 +107,13 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }`
 
+const CONTENT_CHARS_BLOCK = `function trimContent(text: string): string {
+  if (CONTENT_CHARS <= 0 || text.length <= CONTENT_CHARS) return text
+  const points = [...text]
+  if (points.length <= CONTENT_CHARS) return text
+  return points.slice(0, CONTENT_CHARS).join("") + "…"
+}`
+
 /**
  * The credential-rebind subscription. Nineteen files carry it; the two
  * keyless providers (anysearch, keenable) bind at startup and have no
@@ -223,6 +230,23 @@ const WITH_TIMEOUT = [
 ]
 
 /**
+ * Providers that cut each hit's content to a `*_CONTENT_CHARS` budget before it
+ * can reach the agent. Each carries the shared block byte-for-byte, because a
+ * fix belongs in every copy at once. Metaso (`rawContent`) and You.com
+ * (`full_page` markdown) can also return whole pages but do not carry the
+ * bound yet; add them here when they do.
+ */
+const WITH_CONTENT_CHARS = [
+  "doubao-search",
+  "jina-search",
+  "linkup-search",
+  "moonshot-cn-search",
+  "moonshot-search",
+  "ollama-search",
+  "stepfun-search",
+]
+
+/**
  * Providers with an anonymous tier, which bind at startup and never rebind:
  * there is no credential to change, so these files carry no event
  * subscription. Mirrors `KEYLESS` in providers.test.ts.
@@ -299,6 +323,25 @@ describe("repository structure", () => {
       // The deadline must actually be applied, not merely defined.
       expect(source, `${file} applies the deadline`).toContain("signal: timedSignal(signal, ")
       expect(source, `${file} names its timeout`).toContain('_TIMEOUT", ')
+    }
+
+    // Every file that can hand the agent a whole page carries the shared cut,
+    // and applies it: one occurrence is the definition, so a file that only
+    // defines `trimContent` and never calls it still fails here. StepFun calls
+    // it inside a ternary rather than after `content:`, hence the count.
+    for (const file of WITH_CONTENT_CHARS) {
+      const source = providerSource(file)
+      expect(source, `${file} content bound`).toContain(CONTENT_CHARS_BLOCK)
+      const applications = source.match(/\btrimContent\(/g)?.length ?? 0
+      expect(applications, `${file} applies the content bound`).toBeGreaterThanOrEqual(2)
+    }
+
+    // Files whose hits are snippets only must not carry a cutoff they never
+    // use: a stray CONTENT_CHARS knob would be documented and never read.
+    for (const { file } of PROVIDER_CASES.filter((c) => !WITH_CONTENT_CHARS.includes(c.file))) {
+      expect(providerSource(file), `${file} has no full-page content`).not.toContain(
+        "CONTENT_CHARS",
+      )
     }
 
     // The rebind subscription binds every credentialed provider: the two

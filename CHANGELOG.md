@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+> **Behavior change:** Moonshot, Moonshot CN and Jina now cut each hit's body
+> to `*_CONTENT_CHARS` code points whenever content is read, so the result and
+> the cache hold an already-clipped page. A configuration that explicitly sets
+> `<PROVIDER>_INCLUDE_CONTENT` (`MOONSHOT_INCLUDE_CONTENT`,
+> `MOONSHOT_CN_INCLUDE_CONTENT`, `JINA_INCLUDE_CONTENT`) and needs the whole
+> page must now opt out with `<PROVIDER>_CONTENT_CHARS=0`; the default is no
+> longer "everything the vendor returned". Every other configuration behaves
+> as before.
+
+### Fixed
+
+- **Full-page bodies are bounded before they reach the agent and its cache**
+  (Moonshot, Moonshot CN, Jina). With `*_INCLUDE_CONTENT` on, each hit's body
+  was mapped into the result and cached whole: a Moonshot `text` or a Jina
+  markdown page can run to hundreds of kilobytes, and the 200-entry cache kept
+  every copy, so the memory cost followed the context cost.
+  `MOONSHOT_CONTENT_CHARS`, `MOONSHOT_CN_CONTENT_CHARS` and
+  `JINA_CONTENT_CHARS` (all default `4000`) now cut each body to code points
+  before the result is returned and therefore before `writeCache` stores it;
+  `0` keeps the whole body. For Moonshot's default five results that bounds one
+  search at roughly 20k characters (5k-8k tokens) while keeping the article's
+  core argument in view. The cut counts code points, so no surrogate pair is
+  sliced, and the trailing ellipsis says the body was clipped.
+  `test/structure.test.ts` asserts the shared `trimContent` block, that every
+  listed file applies it, and that files with no full-page body carry no
+  `CONTENT_CHARS` knob. Each provider's test covers the default, `0`, surrogate
+  pairs, and the cached copy. Metaso (`rawContent`) and You.com (`full_page`)
+  can return whole pages too and are not covered by this change.
+
 ## [4.4.1] - 2026-10-25
 
 ### Fixed

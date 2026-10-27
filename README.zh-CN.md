@@ -271,7 +271,8 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `JINA_NUM` | `0` | 每次搜索的结果数（1–100）。`0` 表示不传递该参数，以保留 Jina 更快且类型更全的结果 |
-| `JINA_INCLUDE_CONTENT` | 关 | `true` 表示返回每条结果的整页 markdown，大幅增加上下文与计费 token |
+| `JINA_INCLUDE_CONTENT` | 关 | `true` 表示返回每条结果的整页 markdown，并按 `JINA_CONTENT_CHARS` 截断，大幅增加上下文与计费 token |
+| `JINA_CONTENT_CHARS` | `4000` | 每条结果 `content` 保留的码点数（`0` 表示全部保留）。开启 `JINA_INCLUDE_CONTENT` 时生效，摘要路径同样受此上限约束；OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一闸门 |
 | `JINA_GL` / `JINA_HL` | — | 国家 / 语言代码 |
 | `JINA_LOCATION` | — | 模拟的城市级地理位置，例如 `Berlin` |
 | `JINA_TIMEOUT` | `25000`（开启 `JINA_INCLUDE_CONTENT` 时为 `60000`） | 请求超时毫秒数；整页抓取模式下使用更长的默认超时时间 |
@@ -318,7 +319,8 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `MOONSHOT_COUNT` | `5` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
-| `MOONSHOT_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要；搜索费用不变，但会大幅消耗上下文 token |
+| `MOONSHOT_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要，并按 `MOONSHOT_CONTENT_CHARS` 截断；搜索费用不变，但会大幅消耗上下文 token |
+| `MOONSHOT_CONTENT_CHARS` | `4000` | 读取每条结果正文时保留的码点数（`0` 表示全部保留）。默认 5 条结果时单次搜索约 2 万字符；摘要路径同样受此上限约束，且 OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一闸门 |
 
 此 Provider 为月之暗面国际站（[platform.kimi.ai](https://platform.kimi.ai)），密钥从 [platform.kimi.ai 控制台](https://platform.kimi.ai/console/api-keys) 获取，搜索端点为 `api.moonshot.ai/v1/tools/search`。每次成功搜索 0.002 美元，且仅当响应包含至少一条结果时计费——失败与空结果不计费，重复查询走共享缓存。无免 key 匿名层级，因此仅在配置了密钥时加入搜索池。
 
@@ -333,7 +335,8 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `MOONSHOT_CN_COUNT` | `5` | 每次搜索的结果数，限制在 1–20（API 上限，同时是 API 默认值） |
-| `MOONSHOT_CN_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要；搜索费用不变，但会大幅消耗上下文 token |
+| `MOONSHOT_CN_INCLUDE_CONTENT` | 关 | `true` 时发送 `include_content`，取每条结果的整页 `text` 正文而非摘要，并按 `MOONSHOT_CN_CONTENT_CHARS` 截断；搜索费用不变，但会大幅消耗上下文 token |
+| `MOONSHOT_CN_CONTENT_CHARS` | `4000` | 读取每条结果正文时保留的码点数（`0` 表示全部保留）。默认 5 条结果时单次搜索约 2 万字符；摘要路径同样受此上限约束，且 OpenCode 不会截断工具输出，因此这是单次搜索在上下文上的唯一闸门 |
 
 此 Provider 为月之暗面国内站（[platform.kimi.com](https://platform.kimi.com)），密钥从 [platform.kimi.com 控制台](https://platform.kimi.com/console/api-keys) 获取，搜索端点为 `api.moonshot.cn/v1/tools/search`。每次成功搜索 0.01 元，且仅当响应包含至少一条结果时计费——失败与空结果不计费，重复查询走共享缓存。请求与映射逻辑与上节国际站完全一致，包括按累计充值分档的搜索 QPS（Tier0 为 1，最高 50）。
 

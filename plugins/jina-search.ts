@@ -26,6 +26,27 @@ const JinaResponse = Schema.Struct({
 // with them, and with the opencode.db row keyed by integration ID.
 const ID = "osp-jina"
 
+// With INCLUDE_CONTENT on, `content` is the whole page as markdown -- a crawl
+// can return hundreds of kilobytes per hit, and JINA_NUM allows up to 100 hits
+// in one search -- so it is cut to CONTENT_CHARS code points before it can
+// reach the agent. The snippet path (content off) runs through the same cut:
+// Jina's snippets are short today, but the bound should not depend on that.
+//
+// The cut counts code points, never UTF-16 units, so no surrogate pair is
+// sliced in half; the trailing ellipsis tells the model the body was clipped
+// rather than that it ended there.
+//
+// The UTF-16 length check comes first because it is O(1) and can only
+// over-estimate the code-point count: a page already inside the budget skips
+// the spread entirely, which matters when a response carries a hundred full
+// pages the caller never reads.
+function trimContent(text: string): string {
+  if (CONTENT_CHARS <= 0 || text.length <= CONTENT_CHARS) return text
+  const points = [...text]
+  if (points.length <= CONTENT_CHARS) return text
+  return points.slice(0, CONTENT_CHARS).join("") + "…"
+}
+
 // Jina returns no publication date on search hits, so results carry an empty
 // time record rather than a parsed one.
 function toResult(
@@ -43,7 +64,7 @@ function toResult(
   return {
     url: item.url ?? "",
     title: item.title || item.url || "",
-    content: text,
+    content: trimContent(text),
     time: {},
   }
 }
@@ -85,6 +106,9 @@ function envStr(name: string): string {
 //                        far more context tokens and billed tokens. Only worth it
 //                        when you would otherwise webfetch those hits anyway.
 //                        Default (off) asks Jina for titles and snippets only.
+//   JINA_CONTENT_CHARS   code points kept from each hit's `content` (0 keeps all
+//                        of it). Applies with INCLUDE_CONTENT on and to the
+//                        snippet path, so one search cannot outgrow the budget
 //   JINA_NUM             results per search, clamped 1-100; 0 (default) omits the
 //                        parameter -- Jina warns num adds latency and drops
 //                        specialized result types, so use its page size
@@ -98,6 +122,11 @@ function envStr(name: string): string {
 //   OSP_JINA_API_KEY         required; free key at https://jina.ai/?sui=apikey
 const CACHE_TTL = envInt("JINA_CACHE_TTL", 600_000)
 const INCLUDE_CONTENT = envStr("JINA_INCLUDE_CONTENT") === "true"
+// 4000 code points is roughly a long article's opening: enough for the agent
+// to judge and cite the page, while a 100-hit search cannot multiply whole
+// markdown pages into the context or into the 200-entry cache. 0 keeps every
+// page whole.
+const CONTENT_CHARS = envInt("JINA_CONTENT_CHARS", 4_000)
 const SEARCH_SIZE = Math.min(Math.max(envInt("JINA_NUM", 0), 0), 100)
 const GL = envStr("JINA_GL")
 const HL = envStr("JINA_HL")

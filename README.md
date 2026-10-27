@@ -271,7 +271,8 @@ Searches run through the Custom version of Doubao Search, Volcengine's search AP
 | Variable | Default | Description |
 | --- | --- | --- |
 | `JINA_NUM` | `0` | Results per search (1–100). `0` omits the parameter, preserving Jina's faster and broader result types |
-| `JINA_INCLUDE_CONTENT` | `off` | `true` returns full-page markdown per hit, significantly increasing context and billed tokens |
+| `JINA_INCLUDE_CONTENT` | `off` | `true` returns full-page markdown per hit, cut to `JINA_CONTENT_CHARS`; significantly increasing context and billed tokens |
+| `JINA_CONTENT_CHARS` | `4000` | Code points kept from each hit's `content` (`0` keeps all of it). Applies with `JINA_INCLUDE_CONTENT` on and to the snippet path; OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
 | `JINA_GL` / `JINA_HL` | — | Country / language code |
 | `JINA_LOCATION` | — | Simulated city-level location, e.g., `Berlin` |
 | `JINA_TIMEOUT` | `25000` (`60000` with `JINA_INCLUDE_CONTENT`) | Request timeout in milliseconds; full-page fetching uses a higher default timeout |
@@ -318,7 +319,8 @@ Searches run through Kagi's v1 API (`POST kagi.com/api/v1/search`, keys from [ka
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MOONSHOT_COUNT` | `5` | Results per search, clamped to 1–20 (the API's range and default) |
-| `MOONSHOT_INCLUDE_CONTENT` | `off` | `true` sends `include_content` and reads each hit's full-page `text` instead of its snippet; billed the same per search, but substantially increases context tokens |
+| `MOONSHOT_INCLUDE_CONTENT` | `off` | `true` sends `include_content` and reads each hit's full-page `text` instead of its snippet, cut to `MOONSHOT_CONTENT_CHARS`; billed the same per search, but substantially increases context tokens |
+| `MOONSHOT_CONTENT_CHARS` | `4000` | Code points kept from each hit's body when content is read (`0` keeps all of it). At the default five results one search stays near 20k characters; the snippet path is cut by the same bound, and OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
 
 This is Moonshot's international site ([platform.kimi.ai](https://platform.kimi.ai)), with keys from [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) and the Basic search endpoint at `api.moonshot.ai/v1/tools/search`. Billing is $0.002 per successful search, and only when the response carries at least one result -- failed and empty searches are free, and repeat queries ride the shared cache. There is no anonymous tier, so the provider binds only while a key exists.
 
@@ -333,7 +335,8 @@ The cn site ([platform.kimi.com](https://platform.kimi.com)) is a separate accou
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MOONSHOT_CN_COUNT` | `5` | Results per search, clamped to 1–20 (the API's range and default) |
-| `MOONSHOT_CN_INCLUDE_CONTENT` | `off` | `true` sends `include_content` and reads each hit's full-page `text` instead of its snippet; billed the same per search, but substantially increases context tokens |
+| `MOONSHOT_CN_INCLUDE_CONTENT` | `off` | `true` sends `include_content` and reads each hit's full-page `text` instead of its snippet, cut to `MOONSHOT_CN_CONTENT_CHARS`; billed the same per search, but substantially increases context tokens |
+| `MOONSHOT_CN_CONTENT_CHARS` | `4000` | Code points kept from each hit's body when content is read (`0` keeps all of it). At the default five results one search stays near 20k characters; the snippet path is cut by the same bound, and OpenCode never truncates a tool result, so this is the only bound on what one search spends on context |
 
 This is Moonshot's cn site ([platform.kimi.com](https://platform.kimi.com)), with keys from [platform.kimi.com](https://platform.kimi.com/console/api-keys) and the Basic search endpoint at `api.moonshot.cn/v1/tools/search`. Billing is ¥0.01 per successful search, and only when the response carries at least one result -- failed and empty searches are free, and repeat queries ride the shared cache. The request, mapping, and filter story are identical to the international site above, including the recharge-tiered search QPS (1 at Tier0, rising to 50).
 

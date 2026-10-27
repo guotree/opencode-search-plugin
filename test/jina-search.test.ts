@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import type { Plugin } from "@opencode/plugin/effect"
 import type { Effect, Scope } from "effect"
-import { loadPlugin, makeHarness } from "./harness"
+import { loadPlugin, makeHarness, jsonResponse, stubFetch } from "./harness"
 
 interface Module {
   default: { id: string }
@@ -80,5 +80,64 @@ describe("jina-search deadline", () => {
     await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
       /timed out after 250ms/,
     )
+  })
+})
+
+describe("jina-search content bound", () => {
+  const page = (content: string) =>
+    jsonResponse({
+      data: [{ title: "Long", url: "https://example.com/long", content }],
+    })
+
+  it("cuts each page to JINA_CONTENT_CHARS code points, defaulting to 4000", async () => {
+    const harness = await bind({ JINA_INCLUDE_CONTENT: "true" })
+    stubFetch(() => page("a".repeat(5000)))
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as Array<{ content: string }>
+
+    // 4000 is roughly a long article's opening, and the ellipsis says the
+    // page was clipped rather than that it ended there.
+    expect(results[0]!.content).toBe("a".repeat(4000) + "…")
+  })
+
+  it("keeps the whole page with JINA_CONTENT_CHARS=0", async () => {
+    const harness = await bind({ JINA_INCLUDE_CONTENT: "true", JINA_CONTENT_CHARS: "0" })
+    stubFetch(() => page("a".repeat(5000)))
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as Array<{ content: string }>
+
+    expect(results[0]!.content).toBe("a".repeat(5000))
+  })
+
+  it("cuts on code points, never slicing a surrogate pair", async () => {
+    const harness = await bind({ JINA_INCLUDE_CONTENT: "true", JINA_CONTENT_CHARS: "10" })
+    stubFetch(() => page("😀".repeat(20)))
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as Array<{ content: string }>
+
+    expect(results[0]!.content).toBe("😀".repeat(10) + "…")
+  })
+
+  it("caches the truncated page, so a repeat query cannot repay the context", async () => {
+    const harness = await bind({ JINA_INCLUDE_CONTENT: "true" })
+    const fetch = stubFetch(() => page("a".repeat(5000)))
+
+    const provider = harness.providers[0]!
+    const first = (await harness.run(provider.execute({ query: "q" }))) as Array<{
+      content: string
+    }>
+    const second = (await harness.run(provider.execute({ query: "q" }))) as Array<{
+      content: string
+    }>
+
+    expect(fetch.calls).toHaveLength(1)
+    expect(first[0]!.content).toBe("a".repeat(4000) + "…")
+    expect(second[0]!.content).toBe(first[0]!.content)
   })
 })
