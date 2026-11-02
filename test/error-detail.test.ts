@@ -23,7 +23,7 @@ async function errorMessage(harness: Harness): Promise<string> {
 }
 
 describe("Retry-After hints", () => {
-  it.each(["bocha", "doubao", "keenable", "stepfun", "zai", "zhipu"])(
+  it.each(["bocha", "doubao", "keenable", "stepfun", "yuanbao", "zai", "zhipu"])(
     "%s handles seconds, dates, and absent or empty headers",
     async (file) => {
       const harness = await bind(file)
@@ -63,6 +63,7 @@ describe("error detail bound", () => {
     ["doubao", 401], ["doubao", 429], ["doubao", 500],
     ["zai", 401], ["zai", 429], ["zai", 500],
     ["zhipu", 401], ["zhipu", 429], ["zhipu", 500],
+    ["yuanbao", 401], ["yuanbao", 429], ["yuanbao", 500],
   ] as const
 
   it.each(refusalBranches)("%s bounds HTML errors on HTTP %i", async (file, status) => {

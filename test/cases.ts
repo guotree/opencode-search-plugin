@@ -510,6 +510,33 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "yuanbao-search",
+    pluginID: "yuanbao-search",
+    providerID: "osp-yuanbao",
+    displayName: "Yuanbao Search",
+    envKey: "OSP_YUANBAO_API_KEY",
+    response: {
+      Response: {
+        Version: "standard",
+        Query: "a query",
+        RequestId: "yuanbao-request",
+        Pages: [JSON.stringify({
+          url: "https://example.com/yuanbao",
+          title: "Yuanbao hit",
+          content: "Yuanbao dynamic excerpt",
+          passage: "Yuanbao standard excerpt",
+          score: 0.9,
+          pics: [],
+        })],
+      },
+    },
+    expected: [{
+      url: "https://example.com/yuanbao",
+      title: "Yuanbao hit",
+      content: "Yuanbao dynamic excerpt",
+    }],
+  },
+  {
     file: "zai-search",
     pluginID: "zai-search",
     providerID: "osp-zai",

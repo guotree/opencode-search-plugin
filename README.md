@@ -12,7 +12,7 @@
 
 AnySearch and Keenable work immediately without any configuration. Other providers activate only when an API key is configured, ensuring you are not billed for unused services.
 
-When OpenCode operates in `random` mode, it automatically fails over to the next available provider if one encounters an HTTP 429 rate limit. Providers without configured keys are excluded from the pool, preventing requests to unconfigured services.
+OpenCode's `random` mode can retry another available provider when an adapter reports a recognized rate limit (see [provider selection](#skip-the-provider-prompt)). Providers that require a key stay out of the pool until one is configured.
 
 ```sh
 opencode plugin add opencode-search-plugin
@@ -31,14 +31,16 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 }
 ```
 
-`"random"` uses one provider per session and automatically fails over to another if rate-limited. You can also pin a specific provider using its ID (such as `"osp-brave"`), or disable web search with `false`.
+`"random"` selects an available provider and keeps using it within the session. A rate limit recognized by the host can move the session to another provider. Pinning an ID such as `"osp-brave"` keeps that provider selected even when a request fails; `false` disables web search.
+
+Failover depends on the adapter preserving OpenCode's typed HTTP 429 error contract. An ordinary error containing "429" in its message is insufficient, so it is not a guarantee for every adapter. Yuanbao implements this contract for both HTTP 429 and its `RequestLimitExceeded` business error; its failover has been verified in an isolated OpenCode 2.2.5 instance with simulated responses.
 
 <!-- TODO: replace this comment with a 10-second GIF:
      set websearch.provider -> ask a question -> provider responds with sources -->
 
 ## Supported providers
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Yuanbao](https://cloud.tencent.com/document/product/1806) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## Why this exists
 
@@ -48,7 +50,7 @@ This plugin integrates those providers into OpenCode:
 
 - AnySearch and Keenable work immediately without an API key or account.
 - Multiple providers offer free tiers, making it practical to maintain a low-cost backup pool.
-- Expands OpenCode's `random` mode pool: when a provider returns an HTTP 429, OpenCode retries with another to prevent search interruptions.
+- Expands OpenCode's `random` mode pool, with failover available when the adapter reports a limit in the form the host recognizes.
 
 ## Install
 
@@ -173,11 +175,13 @@ Every provider except AnySearch and Keenable requires an API key. You can provid
 
 Environment variables use the `OSP_<PROVIDER>_API_KEY` namespace (e.g., `OSP_BRAVE_API_KEY`) to prevent naming collisions with other tools that export vendor variables. Credentials stored in `/connect` always take precedence over environment variables.
 
-A provider without a configured key remains unbound: it is omitted from the search pool, ensuring `"provider": "random"` never routes queries to a service that would immediately fail.
+A provider that requires a key remains unbound while no key is configured, so `"provider": "random"` does not send requests to it without credentials.
+
+Environment keys come from the running OpenCode server process. Changing a Windows user or system environment variable does not update a process that is already running. Ensure the server inherits the updated environment, or use `/connect` to update credentials immediately. Configuring a key makes a provider available; the upstream service still checks that the key is valid and the service is enabled.
 
 AnySearch and Keenable are exceptions. Both include an anonymous tier and are registered by default, attaching credentials only when a key is provided. For Keenable, the two tiers use separate quotas: configuring a key provides 100,000 free requests per month, whereas keyless requests route to the `/public` endpoint and are rate-limited to 1,000 requests/hour and 10 requests/second per IP (shared across all users on that egress address). Configuring an API key removes dependence on that shared IP rate limit.
 
-With keys configured, `websearch.provider` controls routing: `"random"` distributes queries across all bound providers (see [Skip the provider prompt](#skip-the-provider-prompt)), a specific ID such as `"osp-brave"` pins that provider, and `false` disables web search entirely.
+With keys configured, `websearch.provider` controls routing: `"random"` chooses an available provider per session (see [Skip the provider prompt](#skip-the-provider-prompt)), a specific ID such as `"osp-brave"` pins that provider, and `false` disables web search entirely.
 
 ## Providers
 
@@ -206,6 +210,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
 | StepFun | `osp-stepfun` | `OSP_STEPFUN_API_KEY` | no | StepFun's cn platform (api.stepfun.com); standalone search endpoint, billed ¥0.04 per search; four scenario biases (`programming`, `research`, `gov`, `business`); no time, domain or paging filters, and every hit carries its full page body |
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | no | Combined web and news results; multiple extraction modes |
+| Yuanbao | `osp-yuanbao` | `OSP_YUANBAO_API_KEY` | no | Tencent Cloud WSA; lite / standard / flagship at ¥14 / ¥20 / ¥26 per 1,000 calls; account tier selected in the console; lite verified live, other tiers pending; site and time filters |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | no | Zhipu's international site (api.z.ai); standalone search endpoint, billed per search at $0.01 (Search-Prime); separate account system from Zhipu's cn site |
 | Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | no | Zhipu's cn site (open.bigmodel.cn); standalone search endpoint, no model call; billed per search from ¥0.01 (Search-Std), no free tier; four engines including Sogou and Quark |
 
@@ -416,6 +421,41 @@ The built-in `web_search` tool in Chat Completions is a different capability —
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | Language / country code, e.g., `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | Freshness filter: `day`, `week`, `month`, `year`, or `YYYY-MM-DDtoYYYY-MM-DD` |
 
+### Yuanbao
+
+Available from **v4.6.0**, including the standalone `plugins/yuanbao-search.ts` provider.
+
+1. Complete Tencent Cloud real-name verification, enable Yuanbao Search and create a **service API key** in the [Yuanbao Search console](https://console.cloud.tencent.com/wsapi/index?tab=apikey). The AK/SK signing credential for Tencent Cloud API 3.0 is a different credential type.
+2. In OpenCode, run `/connect` and select **Yuanbao Search (osp)**, or provide `OSP_YUANBAO_API_KEY` in the server's environment. A saved `/connect` key takes precedence over the environment variable.
+3. Pin the provider in `opencode.json(c)`, or use `random` to include it in the available pool:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": { "provider": "osp-yuanbao" }
+}
+```
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `YUANBAO_COUNT` | — | Omits `Cnt` by default for lite compatibility. Explicit values: `10`, `20`, `30`, `40`, `50` (standard/flagship only); sent as an integer, never rounded or clamped |
+| `YUANBAO_SITE` | — | One domain such as `qq.com`, or `exclude:qq.com\|sohu.com` to exclude up to five domains; no URL scheme or path |
+| `YUANBAO_FRESHNESS` | — | Calendar-based freshness: `d1`–`d30`, `m1`–`m12`, `y1`–`y5`. Absolute dates and date ranges are not exposed in this version |
+| `YUANBAO_INDUSTRY` | — | `gov`, `news`, `acad` or `finance` (standard/flagship only) |
+| `YUANBAO_CACHE_TTL` | `600000` | Cache lifetime in milliseconds; `0` disables caching. Normal empty results are cached for at most 30 seconds |
+| `YUANBAO_TIMEOUT` | `25000` | Request and response-body timeout in milliseconds; `0` removes the deadline while retaining cancellation |
+| `OSP_YUANBAO_API_KEY` | — | Service API key from the [Yuanbao Search console](https://console.cloud.tencent.com/wsapi/index?tab=apikey); requires real-name verification and service activation |
+
+Uses `POST https://api.wsa.cloud.tencent.com/SearchPro` with Bearer authentication, without a Tencent Cloud SDK or AK/SK signing. All three tiers use this endpoint; the server applies the account's active tier, which is selected in the console. `Response.Version` reports the tier and is not a request setting. Only `Query` is sent by default: lite does not support `Cnt`, `Industry` or `Mode`. Invalid optional settings are warned about and omitted. Tier-incompatible parameters are reported without retrying a broader search. Vertical-card modes and attachment links are not exposed yet. The site filter targets public web results; the upstream spec does not apply it to vertical cards that a higher tier may also return.
+
+Each `Pages` entry is a JSON string and is decoded separately. Missing URLs and malformed entries are dropped while usable sources keep their order; an entirely unusable non-empty page list is an error. Content prefers the dynamic excerpt (`content`) over the standard excerpt (`passage`), with known `<strong>` highlights removed. These are excerpts, not full page bodies; this provider currently applies no local content cutoff. Dates without an explicit timezone are omitted because the documented wall-clock timestamps have no timezone contract.
+
+HTTP 200 business errors and the known `hit black query` refusal are reported and never cached as empty results. Both HTTP 429 and business code `RequestLimitExceeded` use the Effect HTTP error contract OpenCode needs for `random` failover, preserving `Retry-After` and reporting the actual upstream status. Other errors remain terminal. Normal empty results use the shared short cache; empty results with an informational message are not cached.
+
+[Official pricing](https://cloud.tencent.com/document/product/1806/121798) is ¥14 / ¥20 / ¥26 per 1,000 calls for lite / standard / flagship; flagship is enterprise-only. Failed calls are free, while successful empty-call billing is unspecified. The advertised 2,000 free calls/month is a promotion whose eligibility and validity must be checked in the console. The [official FAQ](https://cloud.tencent.com/document/product/1806/121804) currently says WeChat public-account content is unsupported. After switching account tiers, cached results can persist until expiry; use `YUANBAO_CACHE_TTL=0` when verifying a tier change.
+
+A valid-key lite smoke test on 2026-11-02 returned 10 results each for Chinese, English, site-filtered and `d7` queries. All 10 site-filtered results matched `typescriptlang.org`; sampled dates from the `d7` response fell within the requested window, without checking the original pages' dates. All four normalized repeats used the local cache, for four upstream calls total. Across these 40 hits, `passage` ranged from 396 to 803 code points and `content` was absent. The four uncached provider calls completed in approximately 0.27–0.53 seconds in this environment; this small sample does not establish service-wide latency or retrieval quality. Returned wall-clock dates lacked a timezone. Standard/flagship responses, domain exclusions, `Cnt` and `Industry` remain unverified against the live service.
+
 ### Z.ai
 
 | Variable | Default | Description |
@@ -450,6 +490,8 @@ Zhipu here is the cn site ([open.bigmodel.cn](https://open.bigmodel.cn)), with k
 
 Publication dates are parsed from relative expressions (`3 hours ago`, `3小时前`), absolute dates (`Sep 30, 2026`, `31 Mar 2026`), and ISO 8601 timestamps. Incomplete date strings that could cause lenient parsers to infer an incorrect year (such as `Nov 1`) are ignored.
 
+Provider-specific rules still apply: Yuanbao accepts only timestamps with an explicit timezone. Its sampled `YYYY/MM/DD HH:mm:ss` dates are omitted rather than interpreted in the machine's local timezone.
+
 ## Troubleshooting
 
 ```sh
@@ -479,9 +521,13 @@ Common issues to check:
 - **StepFun results are short or cut off mid-sentence**: The page body is truncated to `STEPFUN_CONTENT_CHARS` (default 4000 code points) and ends with `…` when it was. Raise the limit, or leave `STEPFUN_INCLUDE_CONTENT` off to read the snippet instead.
 - **Search fails with `Kagi API error 401`**: Kagi refused the credentials -- `OSP_KAGI_API_KEY` must be an API key generated at [kagi.com/api/keys](https://kagi.com/api/keys). Billing is a separate condition for using the key at all: the v1 API is pay-as-you-go with no free tier, so once any legacy v0 credit runs out the account needs a payment method on file or prepaid credit (API dashboard, Billing page), and usage is invoiced at $100 or at the end of each monthly cycle, whichever comes first. The error message embeds Kagi's response body, whose `meta.trace` id is what developers@kagi.com asks for when debugging a request.
 - **Search fails with `Connect X in /connect, or set OSP_X_API_KEY`**: The credentials were removed or became unavailable between provider registration and search execution. Reconfigure the key in `/connect` or export the environment variable.
+- **Yuanbao reports `UnauthorizedOperation`, including on HTTP 200**: Verify the service API key in the [WSA console](https://console.cloud.tencent.com/wsapi/index?tab=apikey). Check whether a saved `/connect` key overrides the environment key and whether the server inherited a recent environment change. HTTP 200 alone does not mean search succeeded.
+- **Yuanbao reports `ResourceNotFound` or `ResourceUnavailable`**: Enable the search service for the key's account, or check service availability and account status, respectively. `ResourceUnavailable` alone does not establish that the account is out of credit.
+- **Yuanbao reports `InvalidParameter`**: Check the account tier and optional settings. Lite users should leave `YUANBAO_COUNT` and `YUANBAO_INDUSTRY` unset. The plugin does not remove these settings and silently retry a broader search.
+- **Yuanbao reports `RequestLimitExceeded`**: The adapter reports it as a typed throttle to OpenCode. `random` can retry another provider; a fixed `osp-yuanbao` selection reports the error. `Retry-After` is preserved when supplied; this path was verified with simulated responses, not by exhausting a live quota.
 - **Search fails with `X search timed out after 25000ms`**: The upstream provider did not respond within the deadline. Retrying often succeeds. If a provider is consistently slow in your network environment, increase its `<PROVIDER>_TIMEOUT`. This deadline prevents a hanging upstream connection from blocking the entire session, as OpenCode does not enforce its own search timeout.
 - **Queries are slow or consuming excessive credits**: Keep `*_CACHE_TTL` at its default value. Identical queries within the cache TTL window are served from memory without network calls or credit consumption.
-- **Changes to a local plugin file do not take effect**: OpenCode watches plugins and reloads them automatically. If changes are not picked up, run `opencode service restart`.
+- **Changes to a local plugin file do not take effect**: OpenCode watches plugins and reloads them automatically. If changes are not picked up, run `/reload`.
 
 Logs are located at `~/.local/share/opencode/log/opencode.log`. Filter for `loading plugin` to inspect each resolved plugin and its entry point. Plugin warnings (such as `enable` / `disable` conflicts) are written to this file with an `[opencode-search-plugin]` prefix.
 

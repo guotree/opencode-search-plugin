@@ -12,7 +12,7 @@
 
 AnySearch 和 Keenable 支持免配置直接使用。其余 provider 仅在配置对应 API key 后才会激活，避免产生意外账单。
 
-在 OpenCode 的 `random` 模式下，当某个 provider 遇到 HTTP 429 限流时，系统会自动切换至下一个可用服务。未配置 key 的 provider 不会进入候选池，避免请求发送至未配置的服务。
+OpenCode 的 `random` 模式在适配器报告宿主可识别的限流错误时，可改用其他可用 provider 重试（参见[服务选择说明](#跳过-provider-选择提示)）。需要 key 的 provider 仅在配置凭据后进入候选池。
 
 ```sh
 opencode plugin add opencode-search-plugin
@@ -31,14 +31,16 @@ opencode plugin add opencode-search-plugin
 }
 ```
 
-`"random"` 会在单个会话中固定使用一个 provider，遇到限流时自动回退至其他可用服务。也可以填写具体 ID（如 `"osp-brave"`）指定固定 provider，或设为 `false` 完全禁用联网搜索。
+`"random"` 选择一个可用 provider，并在当前会话中保持使用；宿主识别到限流后可切换至其他 provider。填写具体 ID（如 `"osp-brave"`）会固定该 provider，即使请求失败也不自动切换；设为 `false` 则禁用联网搜索。
+
+自动回退要求适配器保留 OpenCode 约定的 HTTP 429 错误类型。普通错误消息中出现“429”不足以触发切换，因此不能保证每个适配器都支持回退。元宝已为 HTTP 429 和业务码 `RequestLimitExceeded` 实现这一约定，并在隔离的 OpenCode 2.2.5 实例中使用模拟响应验证过切换行为。
 
 <!-- TODO: 录一段 10 秒 GIF：
      配置 websearch.provider -> 提问 -> provider 正常应答带引用 -->
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Yuanbao](https://cloud.tencent.com/document/product/1806) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
 
 ## 为什么做这个插件
 
@@ -48,7 +50,7 @@ OpenCode v2 内置了部分搜索服务：`exa`、`firecrawl`、`parallel`、`ta
 
 - AnySearch 和 Keenable 无需 API key 或注册账号即可直接使用。
 - 多家服务提供免费额度，便于搭建低成本的备用搜索池。
-- 扩充 OpenCode 的 `random` 模式候选池：单家服务返回 HTTP 429 时，OpenCode 会自动使用其他 provider 重试，保障搜索连续性。
+- 扩充 OpenCode 的 `random` 模式候选池；适配器按宿主约定报告限流时，可回退到其他服务。
 
 ## 安装
 
@@ -173,11 +175,13 @@ opencode plugin remove github:guotree/opencode-search-plugin
 
 环境变量使用 `OSP_<PROVIDER>_API_KEY` 命名空间前缀（例如 `OSP_BRAVE_API_KEY`），避免与其他工具导出的同厂商变量名发生命名冲突。`/connect` 中配置的凭据始终优先于环境变量。
 
-未配置 key 的 provider 会保持未绑定状态：它不会进入搜索池，确保 `"provider": "random"` 绝不会将查询路由至注定失败的服务。
+需要 key 的 provider 在未配置凭据时保持未绑定状态，不进入 `"provider": "random"` 的候选池。
+
+环境变量凭据来自正在运行的 OpenCode 服务进程。修改 Windows 用户级或系统级环境变量不会更新已有进程；需确保服务进程继承了新环境，或通过 `/connect` 即时更新凭据。配置了 key 只代表 provider 可以进入搜索池，密钥有效性和服务开通状态仍由上游校验。
 
 AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注册，仅在配置 key 时附带认证凭据头。对于 Keenable，两种层级使用独立额度：配置 key 每月享有 100,000 次免费请求；免 key 请求改走 `/public` 端点，受速率限制（单个 IP 每小时 1,000 次、每秒 10 次，且与同一出口 IP 的其他用户共享）。配置 API key 可消除对共享 IP 限流的依赖。
 
-配置好密钥后，由 `websearch.provider` 控制路由方式：`"random"` 会将查询分散至所有已绑定的 provider（参见[跳过 provider 选择提示](#跳过-provider-选择提示)）；填写具体 ID（如 `"osp-brave"`）则固定使用该 provider；设为 `false` 则完全关闭网页搜索。
+配置好密钥后，由 `websearch.provider` 控制路由方式：`"random"` 按会话选择一个可用 provider（参见[跳过 provider 选择提示](#跳过-provider-选择提示)）；填写具体 ID（如 `"osp-brave"`）则固定使用该 provider；设为 `false` 则完全关闭网页搜索。
 
 ## Provider 列表
 
@@ -206,6 +210,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
 | StepFun | `osp-stepfun` | `OSP_STEPFUN_API_KEY` | 否 | 阶跃星辰国内站（api.stepfun.com）；独立搜索接口，每次 0.04 元；四种场景偏好（`programming`、`research`、`gov`、`business`）；不支持时间、域名与分页过滤，且每条结果都附带整页正文 |
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 否 | 网页与新闻结果合并；提供多种正文抽取模式 |
+| Yuanbao | `osp-yuanbao` | `OSP_YUANBAO_API_KEY` | 否 | 腾讯云元宝搜索 WSA；极速 / 标准 / 旗舰版每千次 14 / 20 / 26 元，档位在控制台选择；极速版已实测，其他档位待验证；支持站点和时间过滤 |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | 否 | 智谱国际站（api.z.ai）；独立搜索接口，按次计费，每次 0.01 美元（Search-Prime）；与国内站为相互独立的账号体系 |
 | Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | 否 | 智谱国内站（open.bigmodel.cn）；独立搜索接口，不经过模型调用；按次计费，Search-Std 每次 0.01 元起，无免费额度；四款引擎（含搜狗、夸克） |
 
@@ -416,6 +421,41 @@ Chat Completions 的内置 `web_search` 工具是另一种能力——由模型�
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | 语言 / 国家代码，例如 `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | 时效筛选：`day`、`week`、`month`、`year` 或 `YYYY-MM-DDtoYYYY-MM-DD` |
 
+### Yuanbao
+
+自 **v4.6.0** 起提供，也可独立使用 `plugins/yuanbao-search.ts`。
+
+1. 完成腾讯云实名认证，在[元宝搜索控制台](https://console.cloud.tencent.com/wsapi/index?tab=apikey)开通服务并创建**服务 API key**。腾讯云 API 3.0 使用的 AK/SK 签名凭据属于另一种凭据类型。
+2. 在 OpenCode 中运行 `/connect`，选择 **Yuanbao Search (osp)**；或在服务进程的环境中提供 `OSP_YUANBAO_API_KEY`。已保存的 `/connect` 凭据优先于环境变量。
+3. 在 `opencode.json(c)` 中固定使用元宝；也可设为 `random`，将其加入可用服务池：
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": { "provider": "osp-yuanbao" }
+}
+```
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `YUANBAO_COUNT` | — | 默认不发送 `Cnt`，兼容极速版。显式取值：`10`、`20`、`30`、`40`、`50`（仅标准 / 旗舰版）；以整数发送，不自动取整或限制到邻近值 |
+| `YUANBAO_SITE` | — | 单个域名，如 `qq.com`；或以 `exclude:qq.com\|sohu.com` 排除最多五个域名；不包含 URL 协议或路径 |
+| `YUANBAO_FRESHNESS` | — | 按自然日 / 月 / 年过滤：`d1`–`d30`、`m1`–`m12`、`y1`–`y5`。本版不提供绝对日期及日期范围配置 |
+| `YUANBAO_INDUSTRY` | — | `gov`、`news`、`acad` 或 `finance`（仅标准 / 旗舰版） |
+| `YUANBAO_CACHE_TTL` | `600000` | 缓存有效期，单位毫秒；`0` 禁用缓存。正常空结果最多缓存 30 秒 |
+| `YUANBAO_TIMEOUT` | `25000` | 请求及响应正文读取的超时毫秒数；`0` 取消超时限制，保留取消信号 |
+| `OSP_YUANBAO_API_KEY` | — | [元宝搜索控制台](https://console.cloud.tencent.com/wsapi/index?tab=apikey)创建的服务 API key；需完成实名认证并开通服务 |
+
+使用 Bearer 认证调用 `POST https://api.wsa.cloud.tencent.com/SearchPro`，无需腾讯云 SDK 或 AK/SK 签名。三档共用这一端点，服务端按账号当前开通的档位处理，档位在控制台选择；响应中的 `Response.Version` 用于标明档位，不是请求设置。默认只发送 `Query`：极速版不支持 `Cnt`、`Industry` 和 `Mode`。可选配置值非法时告警并忽略；参数与账号档位不兼容时明确报错，不删除过滤条件后自动重试。暂不开放垂直卡片模式和附件子链配置。站点过滤针对公开网页结果，上游文档说明它不约束高档位可能附带返回的垂直卡片。
+
+`Pages` 中每项都是 JSON 字符串，逐条解码。缺少 URL 或损坏的条目被跳过，有效来源保持原顺序；非空列表全部不可用时作为错误处理。优先读取动态摘要 `content`，缺失或为空时回退到标准摘要 `passage`，并清理已知的 `<strong>` 高亮标记。这些字段是摘要而非网页全文，当前不额外进行本地长度截断。文档示例中的无时区日期没有明确时区约定，因此不输出为发布时间。
+
+HTTP 200 内的业务错误及已知的 `hit black query` 拦截均明确报错，不缓存为无结果。HTTP 429 与业务码 `RequestLimitExceeded` 使用 OpenCode 的 `random` 回退所需的 Effect HTTP 错误类型，保留 `Retry-After`，并在错误信息中记录真实上游状态。其他错误直接报告。正常空结果采用共享短缓存；带提示信息的空结果不缓存。
+
+[官方按量价格](https://cloud.tencent.com/document/product/1806/121798)为极速 / 标准 / 旗舰版每千次 14 / 20 / 26 元，旗舰版仅向企业开放。失败调用不计费，成功但空结果的计费规则未明确。宣传中的每月 2000 次免费额度属于活动口径，领取条件和有效期以控制台为准。[官方 FAQ](https://cloud.tencent.com/document/product/1806/121804)目前写明不支持微信公众号内容。切换账号档位后，旧结果可能继续命中缓存；验证切档时可设 `YUANBAO_CACHE_TTL=0`。
+
+2026-11-02 使用有效 Key 实测极速版：中文、英文、指定站点和 `d7` 查询各返回 10 条结果；指定站点的 10 条全部属于 `typescriptlang.org`；`d7` 响应中抽样日期落在请求窗口内，未核查原网页的日期。四组归一化后的重复查询均命中本地缓存，总计发出四次上游请求。40 条结果的 `passage` 长度为 396～803 个码点，均无 `content` 字段。四次未命中缓存的 provider 调用在本环境耗时约 0.27～0.53 秒，该小样本不能代表整体延迟或检索质量。返回的日期没有时区；标准版、旗舰版、域名排除、`Cnt` 和 `Industry` 尚未进行真实服务验证。
+
 ### Z.ai
 
 | 变量 | 默认值 | 说明 |
@@ -450,6 +490,8 @@ Z.ai 是智谱的国际站，拥有独立的账号体系：密钥从 [z.ai](http
 
 时间解析支持相对时间（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601 时间戳。不完整的日期文本（如缺少年份的 `Nov 1`）会被直接忽略，避免宽容解析器推导出错误的年份。
 
+具体 provider 仍有各自的解析规则：元宝只接受显式带时区的时间戳。实测中的 `YYYY/MM/DD HH:mm:ss` 日期不输出为发布时间，避免机器本地时区影响结果。
+
 ## 排错
 
 ```sh
@@ -479,9 +521,13 @@ opencode api get "/api/websearch/provider"
 - **StepFun 返回的结果偏短或在句中截断**：正文被截断至 `STEPFUN_CONTENT_CHARS`（默认 4000 码点），截断时以 `…` 结尾。可提高该上限，或关闭 `STEPFUN_INCLUDE_CONTENT` 改为读取摘要。
 - **搜索报错 `Kagi API error 401`**：Kagi 拒绝了凭据——`OSP_KAGI_API_KEY` 必须是在 [kagi.com/api/keys](https://kagi.com/api/keys) 生成的 API key。计费是使用 key 的另一项前提：v1 API 按量付费、无免费额度，历史 v0 赠额用尽后，账号需在 API 仪表盘的 Billing 页绑定支付方式或预充余额；用量每满 100 美元或每个计费周期结束时出账，以先到者为准。错误信息内嵌 Kagi 的响应体，其中的 `meta.trace` 即向 developers@kagi.com 反馈时需要提供的请求追踪 ID。
 - **搜索报错 `Connect X in /connect, or set OSP_X_API_KEY`**：凭据在 provider 注册与实际调用之间失效或丢失。请重新在 `/connect` 中配置或重新导出环境变量。
+- **元宝报告 `UnauthorizedOperation`，包括 HTTP 200 响应**：在[WSA 控制台](https://console.cloud.tencent.com/wsapi/index?tab=apikey)检查服务 API key；同时确认 `/connect` 保存的旧凭据是否覆盖了环境变量，以及服务进程是否继承了新环境。仅有 HTTP 200 不代表搜索成功。
+- **元宝报告 `ResourceNotFound` 或 `ResourceUnavailable`**：前者需为密钥所属账号开通搜索服务；后者需检查服务和账号状态，不能仅凭这一错误确定账号欠费。
+- **元宝报告 `InvalidParameter`**：核对账号档位和可选参数。极速版应保持 `YUANBAO_COUNT`、`YUANBAO_INDUSTRY` 未设置。插件不会删除这些配置后静默扩大搜索范围重试。
+- **元宝报告 `RequestLimitExceeded`**：适配器将其转换为宿主可识别的限流错误；`random` 可切换到其他 provider，固定 `osp-yuanbao` 则直接报告错误。上游返回 `Retry-After` 时予以保留；这条路径使用模拟响应验证，未通过耗尽真实配额测试。
 - **搜索报错 `X search timed out after 25000ms`**：上游服务在超时时限内未完成响应。通常重试即可恢复；若特定 provider 响应较慢，可提高对应的 `<PROVIDER>_TIMEOUT`。此限制是为防止无响应的上游服务导致整个会话永久阻塞（OpenCode 自身不对搜索设置超时限制）。
 - **搜索延迟高或配额消耗过快**：建议保留 `*_CACHE_TTL` 的默认值。在缓存窗口内的重复查询将直接由内存提供响应，不产生外部网络请求或费用。
-- **修改本地插件文件后未生效**：OpenCode 会监视插件文件并自动重载。若未自动重载，可执行 `opencode service restart` 重启服务。
+- **修改本地插件文件后未生效**：OpenCode 会监视插件文件并自动重载。若未自动重载，可执行 `/reload`。
 
 日志位于 `~/.local/share/opencode/log/opencode.log`；过滤 `loading plugin` 可查看 OpenCode 解析的所有插件及其入口文件。本插件关于 `enable` / `disable` 配置的警告信息同样记录在该文件中，带有 `[opencode-search-plugin]` 前缀。
 

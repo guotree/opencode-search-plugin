@@ -44,7 +44,7 @@ const RETRY_HINT_BLOCK = `function retryHint(retry: string | null): string {
 
 const WITH_RETRY_HINT = [
   "bocha-search", "doubao-search", "keenable-search",
-  "stepfun-search", "zai-search", "zhipu-search",
+  "stepfun-search", "yuanbao-search", "zai-search", "zhipu-search",
 ]
 
 const CACHE_BLOCK = `const EMPTY_RESULT_TTL = 30_000
@@ -191,6 +191,7 @@ const WITH_DATES = [
   "serper-search",
   "stepfun-search",
   "youcom-search",
+  "yuanbao-search",
   "zai-search",
   "zhipu-search",
 ]
@@ -225,6 +226,7 @@ const WITH_TIMEOUT = [
   "serper-search",
   "stepfun-search",
   "youcom-search",
+  "yuanbao-search",
   "zai-search",
   "zhipu-search",
 ]

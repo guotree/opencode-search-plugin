@@ -5,7 +5,7 @@
 Each provider is **one self-contained `.ts` file**, living in `plugins/`:
 
 ```text
-index.ts          package entrypoint; composes the twenty-one providers
+index.ts          package entrypoint; composes the twenty-two providers
 plugins/          the providers, each one independently copyable
 test/             contract tests, harness, and structure guards
 scripts/          manual sync into a local OpenCode config
@@ -30,13 +30,13 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
-| `envInt` / `envStr` | all twenty-one | Environment knobs read once at load time; `envInt` takes whole numbers only, so a fractional value falls back to the default instead of reaching the wire |
-| `EMPTY_RESULT_TTL` / cache Map / `cacheKey` / `readCache` / `writeCache` | all twenty-one | Repeat queries are billed dispatches; a hit refreshes recency, an empty result pins briefly |
-| `boundDetail` | all twenty-one | A WAF/CDN error page can run tens of kilobytes; the detail is cut at 300 code points before it reaches the tool result |
-| `retryHint` | bocha, doubao, keenable, stepfun, zai, zhipu | `Retry-After` is delay-seconds or an HTTP-date; only the seconds form earns its "s" |
-| `timedSignal` | all twenty-one | The host applies no deadline around `execute` |
-| `parseSearchDate` and its tables | bocha, brave, deepseek, doubao, kagi, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, zai, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap |
-| `soften` | all twenty-one | The host types the credential API's failure channel as `unknown` |
+| `envInt` / `envStr` | all twenty-two | Environment knobs read once at load time; `envInt` takes whole numbers only, so a fractional value falls back to the default instead of reaching the wire |
+| `EMPTY_RESULT_TTL` / cache Map / `cacheKey` / `readCache` / `writeCache` | all twenty-two | Repeat queries are billed dispatches; a hit refreshes recency, an empty result pins briefly |
+| `boundDetail` | all twenty-two | A WAF/CDN error page can run tens of kilobytes; the detail is cut at 300 code points before it reaches the tool result |
+| `retryHint` | bocha, doubao, keenable, stepfun, yuanbao, zai, zhipu | `Retry-After` is delay-seconds or an HTTP-date; only the seconds form earns its "s" |
+| `timedSignal` | all twenty-two | The host applies no deadline around `execute` |
+| `parseSearchDate` and its tables | bocha, brave, deepseek, doubao, kagi, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, yuanbao, zai, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap; Yuanbao accepts only explicitly zoned timestamps until its wall-clock timezone is confirmed |
+| `soften` | all twenty-two | The host types the credential API's failure channel as `unknown` |
 | the `Effect.forkScoped` rebind subscription | all except anysearch, keenable | A rotated or deleted key must rebind the provider without a restart; the two keyless files bind at startup and never rebind. One failed rebind is warned about and retried by the next event -- the subscription itself must survive a host-side defect |
 
 Files with no date field (anysearch, jina, linkup, ollama) must not carry `parseSearchDate`. The structure test asserts that too.
@@ -63,12 +63,18 @@ The provider ID is the one that can collide with somebody else's, so it carries 
 2. Keep the shared blocks byte-identical — copy them from an existing file rather than retyping.
 3. Export both `effect` (so `index.ts` can compose it) and `default Plugin.define({ id: "<name>-search", effect })`.
 4. Add an entry to `PROVIDER_CASES` in `test/cases.ts` with a response body and the results it must map to.
-5. Add the import and the `["<name>", <name>]` tuple to `index.ts`.
-6. Add a row to the provider table and the configuration tables in `README.md`, and the same two tables in `README.zh-CN.md`.
-7. `node scripts/audit-readme.mjs` -- cross-checks both READMEs' tables, provider lists and env keys against the plugins and `test/cases.ts`, and exits non-zero on any mismatch.
-8. `npm run check`.
+5. Add the import and the `["osp-<vendor>", <name>]` tuple to `index.ts`, plus the standalone subpath export in `package.json`. Update its provider count and description.
+6. Add the provider to the applicable shared-block lists in `test/structure.test.ts`. Add provider-specific tests for request parameters, response shapes and errors not covered by the shared contract.
+7. Update both READMEs' supported-provider links, provider rows and configuration sections, keeping names, variable order and defaults aligned. Explain service activation, credential type, tier restrictions and any provider-specific date or content rules. Add an Unreleased changelog entry.
+8. Record what is documented, verified against the live service, or tested only with fixtures. A successful response does not prove all filters or tiers work. Keep sample dates and scope with any latency or content-length measurements; do not claim a provider is available in an already-published version before releasing it.
+9. Run `node scripts/audit-readme.mjs` -- cross-checks both READMEs' tables, provider lists and env keys against the plugins and `test/cases.ts`, and exits non-zero on any mismatch.
+10. Run `npm run check` and `npm pack --dry-run` to verify the implementation and package contents.
 
 Before inventing a query parameter, check the provider's own documentation. Two of these plugins shipped knobs that the upstream API silently ignores; `plugins/serpapi-search.ts` documents one such removal in a comment.
+
+For random-provider failover, OpenCode checks `HttpClientError.isHttpClientError(cause)` and `cause.response.status === 429`. An ordinary `Error` containing the text "429" does not satisfy that contract. See [yuanbao-search.ts](plugins/yuanbao-search.ts) for converting both HTTP 429 and a documented business throttle into the Effect HTTP error while keeping the real upstream status in diagnostics and omitting credentials from the error request. Verify failover through the host as well as the adapter's error type: the unit-test harness below does not implement random selection or cooldowns. Yuanbao's conversion was exercised in an isolated OpenCode 2.2.5 instance using simulated upstream responses; that does not establish the behavior of other adapters.
+
+For live checks, have the test process inherit credentials or pass them internally from the environment without printing request headers or secret values. Keep output to the response fields needed for verification. Do not silently switch paid service tiers, drop user filters to make a request pass, or force real rate-limit exhaustion to validate a retry path. A `/connect` credential overrides an environment key; a running server does not automatically inherit later changes to Windows user or system environment variables.
 
 ## Tests
 
@@ -94,11 +100,12 @@ Before inventing a query parameter, check the provider's own documentation. Two 
 | `test/serper-search.test.ts` | Serper's POST body, the GL/HL/TBS filters riding in the body rather than the URL, the 1-100 clamp, and the organic-only mapping |
 | `test/stepfun-search.test.ts` | StepFun's request body and category validation, the snippet-by-default mapping, the code-point content cut, and the 401/402/451/429 reports |
 | `test/youcom-search.test.ts` | You.com's request body, the 1-100 count clamp, the extraction-mode shapes and fallback, and the web+news merge |
+| `test/yuanbao-search.test.ts` | Yuanbao's lite-compatible defaults, optional filters, environment fallback and key rotation, cancellation and response-body deadlines, JSON-string pages, malformed-row isolation, explicit-zone dates, HTTP 200 business errors, typed throttles and uncached policy refusals |
 | `test/zai-search.test.ts` | Z.ai's request body, the fixed `search-prime` engine, hit filtering, and the 401/429 reports |
 | `test/zhipu-search.test.ts` | Zhipu's request body per engine, the 70-character query cut, hit filtering, and the 401/429 reports |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
 | `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
-| `test/index-fault.test.ts` | The aggregate loop's fault isolation: a provider that dies or throws while registering is named on stderr while the other twenty register, and an interruption still propagates |
+| `test/index-fault.test.ts` | The aggregate loop's fault isolation: a provider that dies or throws while registering is named on stderr while the other twenty-one register, and an interruption still propagates |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |
 | `test/harness.ts` | The fake plugin context, credential sequences, fetch recorder |
 

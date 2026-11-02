@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-11-02
+
+### Added
+
+- Yuanbao Search (`osp-yuanbao`, `plugins/yuanbao-search.ts`) through Tencent
+  Cloud's Bearer service-key endpoint. The account tier is selected in the
+  console; the default request sends only `Query` for lite compatibility.
+  Optional count, site, calendar freshness and industry settings are validated
+  before dispatch. JSON-string pages are decoded separately and mapped to
+  dynamic or standard excerpts, retaining usable sources when another row is
+  malformed. No local excerpt cutoff is applied; dates without a timezone are
+  omitted. HTTP 200 business errors and known policy refusals are reported
+  without caching them as empty results. HTTP 429 and `RequestLimitExceeded`
+  support OpenCode's random-provider failover, preserving Retry-After and the
+  real upstream status in diagnostics; this path was verified with simulated
+  responses in OpenCode 2.2.5. Valid-key lite checks on 2026-11-02 returned
+  40 results across Chinese, English, site and `d7` queries, with all repeated
+  queries served from cache. Standard/flagship responses, exclusions, count
+  and industry filters remain unverified against the live service.
+
+### Changed
+
+- Both READMEs now document Yuanbao setup, account-tier restrictions, credential
+  precedence and the inherited server environment, plus HTTP 200 business-error
+  troubleshooting. Random selection is described as session-sticky, and
+  failover claims are qualified by the host's typed HTTP error contract.
+
 ## [4.5.0] - 2026-10-27
 
 > **Behavior change:** Moonshot, Moonshot CN and Jina now cut each hit's body
