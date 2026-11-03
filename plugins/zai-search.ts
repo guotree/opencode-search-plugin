@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Z.ai is Zhipu's international site: a separate account system from
 // open.bigmodel.cn (registered here as `osp-zhipu`), with its own keys, its
@@ -256,6 +257,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Z.ai Search" show up in /connect with an API-key method.
@@ -318,83 +354,101 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    search_query: queryKey,
-                    search_engine: ENGINE,
-                    count: COUNT,
-                    // Omitted rather than sent as "noLimit": the two mean the
-                    // same thing, and noLimit is the documented default.
-                    ...(RECENCY ? { search_recency_filter: RECENCY } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      search_query: queryKey,
+                      search_engine: ENGINE,
+                      count: COUNT,
+                      // Omitted rather than sent as "noLimit": the two mean the
+                      // same thing, and noLimit is the documented default.
+                      ...(RECENCY ? { search_recency_filter: RECENCY } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Z.ai search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Z.ai request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Z.ai search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Z.ai request failed: " + String(error)),
               })
-              const described = boundDetail(describeFailure(String(detail)))
 
-              // A 401 here is most often a cn key: the two sites are separate
-              // account systems, and the fix is a different provider, not a
-              // different string in the same box.
-              if (response.status === 401) {
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("Z.ai search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const described = boundDetail(describeFailure(String(detail)))
+
+                // A 401 here is most often a cn key: the two sites are separate
+                // account systems, and the fix is a different provider, not a
+                // different string in the same box.
+                if (response.status === 401) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Z.ai rejected the API key (HTTP 401): " +
+                        described +
+                        ". Connect Z.ai Search in /connect or set OSP_ZAI_API_KEY to a key from https://z.ai/manage-apikey/apikey-list. A key issued on open.bigmodel.cn belongs to Zhipu Search (osp-zhipu) instead",
+                    ),
+                  )
+                }
+                if (response.status === 429) {
+                  const retry = response.headers.get("Retry-After")
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      SEARCH_URL,
+                      "POST",
+                      "Z.ai rate limited the request (HTTP 429)" +
+                        retryHint(retry) +
+                        ": " +
+                        described +
+                        ". Concurrent searches are capped per account; retry shortly or run fewer searches at once",
+                    ),
+                  )
+                }
                 return yield* Effect.fail(
-                  new Error(
-                    "Z.ai rejected the API key (HTTP 401): " +
-                      described +
-                      ". Connect Z.ai Search in /connect or set OSP_ZAI_API_KEY to a key from https://z.ai/manage-apikey/apikey-list. A key issued on open.bigmodel.cn belongs to Zhipu Search (osp-zhipu) instead",
-                  ),
+                  new Error("Z.ai API error " + response.status + ": " + described),
                 )
               }
-              if (response.status === 429) {
-                const retry = response.headers.get("Retry-After")
-                return yield* Effect.fail(
-                  new Error(
-                    "Z.ai rate limited the request (HTTP 429)" +
-                      retryHint(retry) +
-                      ": " +
-                      described +
-                      ". Concurrent searches are capped per account; retry shortly or run fewer searches at once",
-                  ),
-                )
-              }
-              return yield* Effect.fail(
-                new Error("Z.ai API error " + response.status + ": " + described),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Z.ai response: " + String(error)),
-            })
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Z.ai search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Z.ai response: " + String(error)),
+              })
 
-            const body = yield* Schema.decodeUnknownEffect(ZaiResponse)(json)
-            const results = (body.search_result ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const body = yield* Schema.decodeUnknownEffect(ZaiResponse)(json)
+              const results = (body.search_result ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
 
-            // Z.ai charges per dispatch, so a result that never enters the
-            // cache is a query paid for again on every repeat.
-            writeCache(queryKey, results)
-            return results
+              // Z.ai charges per dispatch, so a result that never enters the
+              // cache is a query paid for again on every repeat.
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

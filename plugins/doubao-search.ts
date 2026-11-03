@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Doubao Search answers inside a Volcengine-style envelope: `ResponseMetadata`
 // names the call (`RequestId` is what Volcengine support needs to find it
@@ -345,6 +346,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Doubao Search" show up in /connect with an API-key method.
@@ -407,120 +443,139 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  // The Custom version speaks PascalCase, not the snake_case
-                  // most of these providers use. `SearchType: "web"` selects
-                  // the webpage collection; `Count` is honored server-side,
-                  // unlike the Global version's `doc_count`. The full page
-                  // body comes back without asking for it, so nothing beyond
-                  // the knobs below is sent -- `Filter` only rides when one of
-                  // them asks, and `AuthInfoLevel` takes a single integer (an
-                  // array is rejected as an invalid parameter).
-                  body: JSON.stringify({
-                    Query: queryKey,
-                    SearchType: "web",
-                    Count: COUNT,
-                    ...(AUTH_LEVEL > 0 || TIME_RANGE !== ""
-                      ? {
-                          Filter: {
-                            ...(AUTH_LEVEL > 0 ? { AuthInfoLevel: AUTH_LEVEL } : {}),
-                            ...(TIME_RANGE !== "" ? { TimeRange: TIME_RANGE } : {}),
-                          },
-                        }
-                      : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    // The Custom version speaks PascalCase, not the snake_case
+                    // most of these providers use. `SearchType: "web"` selects
+                    // the webpage collection; `Count` is honored server-side,
+                    // unlike the Global version's `doc_count`. The full page
+                    // body comes back without asking for it, so nothing beyond
+                    // the knobs below is sent -- `Filter` only rides when one of
+                    // them asks, and `AuthInfoLevel` takes a single integer (an
+                    // array is rejected as an invalid parameter).
+                    body: JSON.stringify({
+                      Query: queryKey,
+                      SearchType: "web",
+                      Count: COUNT,
+                      ...(AUTH_LEVEL > 0 || TIME_RANGE !== ""
+                        ? {
+                            Filter: {
+                              ...(AUTH_LEVEL > 0 ? { AuthInfoLevel: AUTH_LEVEL } : {}),
+                              ...(TIME_RANGE !== "" ? { TimeRange: TIME_RANGE } : {}),
+                            },
+                          }
+                        : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Doubao search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Doubao request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("Doubao search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Doubao request failed: " + String(error)),
               })
-              const described = boundDetail(describeFailure(String(detail)))
 
-              // Doubao names each refusal in its own envelope, and the two
-              // below carry a fix the user can act on -- a status code would
-              // send them hunting for a key problem that was really a quota.
-              if (response.status === 401) {
-                return yield* Effect.fail(
-                  new Error(
-                    "Doubao rejected the API key (HTTP 401): " +
-                      described +
-                      ". Connect Doubao Search in /connect or set OSP_DOUBAO_API_KEY to a key from https://console.volcengine.com/search-infinity/web-search-exp",
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("Doubao search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
                   ),
                 )
-              }
-              if (response.status === 429) {
-                const retry = response.headers.get("Retry-After")
-                return yield* Effect.fail(
-                  new Error(
-                    "Doubao rate limited the request (HTTP 429)" +
-                      retryHint(retry) +
-                      ": " +
-                      described +
-                      ". The free quota is 500 searches per month per Volcengine account and resets on the 1st",
-                  ),
-                )
-              }
-              return yield* Effect.fail(
-                new Error("Doubao API error " + response.status + ": " + described),
-              )
-            }
+                const described = boundDetail(describeFailure(String(detail)))
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Doubao response: " + String(error)),
-            })
-
-            // Doubao refuses inside HTTP 200: a business error rides
-            // `ResponseMetadata.Error` with a non-empty `Code`, and the call
-            // is not billed for it. Reading the envelope before the schema
-            // keeps that refusal from decoding into a silent empty result.
-            const metadata = (
-              json as {
-                ResponseMetadata?: {
-                  RequestId?: string | null
-                  Error?: { Code?: string | null; Message?: string | null }
+                // Doubao names each refusal in its own envelope, and the two
+                // below carry a fix the user can act on -- a status code would
+                // send them hunting for a key problem that was really a quota.
+                if (response.status === 401) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Doubao rejected the API key (HTTP 401): " +
+                        described +
+                        ". Connect Doubao Search in /connect or set OSP_DOUBAO_API_KEY to a key from https://console.volcengine.com/search-infinity/web-search-exp",
+                    ),
+                  )
                 }
+                if (response.status === 429) {
+                  const retry = response.headers.get("Retry-After")
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      SEARCH_URL,
+                      "POST",
+                      "Doubao rate limited the request (HTTP 429)" +
+                        retryHint(retry) +
+                        ": " +
+                        described +
+                        ". The free quota is 500 searches per month per Volcengine account and resets on the 1st",
+                    ),
+                  )
+                }
+                return yield* Effect.fail(
+                  new Error("Doubao API error " + response.status + ": " + described),
+                )
               }
-            ).ResponseMetadata
-            const failure = metadata?.Error
-            if (failure?.Code) {
-              return yield* Effect.fail(
-                new Error(
-                  "Doubao search failed: " +
-                    (failure.Message || failure.Code) +
-                    " (code " +
-                    failure.Code +
-                    (metadata?.RequestId ? ", request " + metadata.RequestId : "") +
-                    ")",
-                ),
-              )
-            }
 
-            const body = yield* Schema.decodeUnknownEffect(DoubaoResponse)(json)
-            const results = (body.Result?.WebResults ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("Doubao search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Doubao response: " + String(error)),
+              })
 
-            writeCache(queryKey, results)
-            return results
+              // Doubao refuses inside HTTP 200: a business error rides
+              // `ResponseMetadata.Error` with a non-empty `Code`, and the call
+              // is not billed for it. Reading the envelope before the schema
+              // keeps that refusal from decoding into a silent empty result.
+              const metadata = (
+                json as {
+                  ResponseMetadata?: {
+                    RequestId?: string | null
+                    Error?: { Code?: string | null; Message?: string | null }
+                  }
+                }
+              ).ResponseMetadata
+              const failure = metadata?.Error
+              if (failure?.Code) {
+                return yield* Effect.fail(
+                  new Error(
+                    "Doubao search failed: " +
+                      (failure.Message || failure.Code) +
+                      " (code " +
+                      failure.Code +
+                      (metadata?.RequestId ? ", request " + metadata.RequestId : "") +
+                      ")",
+                  ),
+                )
+              }
+
+              const body = yield* Schema.decodeUnknownEffect(DoubaoResponse)(json)
+              const results = (body.Result?.WebResults ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

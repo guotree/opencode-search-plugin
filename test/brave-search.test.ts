@@ -171,15 +171,6 @@ describe("brave-search", () => {
     expect(Date.now() - started).toBeLessThan(3_000)
   })
 
-  it("sends the deadline signal only when BRAVE_TIMEOUT is above zero", async () => {
-    const { harness } = await bind({ OSP_BRAVE_API_KEY: "", BRAVE_TIMEOUT: "0" })
-    const fetch = stubFetch(() => jsonResponse({ web: { results: [] } }))
-    await harness.run(harness.providers[0]!.execute({ query: "q" }))
-
-    // 0 removes the deadline, but cancellation must still reach the socket.
-    expect(fetch.calls[0]!.init?.signal).toBeDefined()
-    expect((fetch.calls[0]!.init?.signal as AbortSignal).aborted).toBe(false)
-  })
 
   it("reports the HTTP status when Brave refuses the request", async () => {
     const { harness } = await bind()

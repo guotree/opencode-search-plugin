@@ -196,21 +196,7 @@ function apiFailure(response: Response, body: typeof YuanbaoEnvelope.Type.Respon
   if (response.status === 429 || code === "RequestLimitExceeded") {
     const retry = response.headers.get("Retry-After")
     const description = "Yuanbao rate limited the request" + context + retryHint(retry) + ": " + detail
-    // OpenCode v2.0.30's random routing checks this exact Effect HTTP error
-    // contract. A plain Error with '429' in its message never triggers failover.
-    // The synthetic status classifies a business throttle; context keeps the
-    // actual upstream status. No key, query or raw response body is retained.
-    const request = HttpClientRequest.post(SEARCH_URL)
-    return new HttpClientError.HttpClientError({
-      reason: new HttpClientError.StatusCodeError({
-        request,
-        response: HttpClientResponse.fromWeb(request, new Response(null, {
-          status: 429,
-          headers: retry === null ? {} : { "Retry-After": retry },
-        })),
-        description,
-      }),
-    })
+    return rateLimitError(response, SEARCH_URL, "POST", description)
   }
   let advice = ""
   if (code === "UnauthorizedOperation" || response.status === 401) {
@@ -231,6 +217,41 @@ function apiFailure(response: Response, body: typeof YuanbaoEnvelope.Type.Respon
 // `AbortSignal.timeout(0)` aborts instantly rather than "never".
 function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
+}
+
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
 }
 
 export const effect = (ctx: Plugin.Context) =>
@@ -277,62 +298,67 @@ export const effect = (ctx: Plugin.Context) =>
               return yield* Effect.fail(new Error("Connect Yuanbao Search in /connect, or set OSP_YUANBAO_API_KEY"))
             }
 
-            // Read the body inside the same cancellable task as fetch, so the
-            // deadline also covers servers that send headers and then stall.
-            const { response, text } = yield* Effect.tryPromise({
-              try: async (signal) => {
-                const response = await fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json; charset=utf-8",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    Query: queryKey,
-                    ...(COUNT === undefined ? {} : { Cnt: COUNT }),
-                    ...(SITE === "" ? {} : { Site: SITE }),
-                    ...(FRESHNESS === "" ? {} : { Freshness: FRESHNESS }),
-                    ...(INDUSTRY === "" ? {} : { Industry: INDUSTRY }),
-                  }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                })
-                return { response, text: await response.text() }
-              },
-              catch: (error) => error instanceof Error && error.name === "TimeoutError"
-                ? new Error("Yuanbao search timed out after " + SEARCH_TIMEOUT + "ms")
-                : new Error("Yuanbao request failed: " + boundDetail(String(error))),
-            })
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const { response, text } = yield* Effect.tryPromise({
+                try: async () => {
+                  const response = await fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json; charset=utf-8",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      Query: queryKey,
+                      ...(COUNT === undefined ? {} : { Cnt: COUNT }),
+                      ...(SITE === "" ? {} : { Site: SITE }),
+                      ...(FRESHNESS === "" ? {} : { Freshness: FRESHNESS }),
+                      ...(INDUSTRY === "" ? {} : { Industry: INDUSTRY }),
+                    }),
+                    signal,
+                  })
+                  try {
+                    return { response, text: await response.text() }
+                  } catch (error) {
+                    if (response.status === 429) return { response, text: "response body unavailable" }
+                    throw error
+                  }
+                },
+                catch: (error) => ((error instanceof Error && error.name === "TimeoutError") || (signal.aborted && signal.reason?.name === "TimeoutError"))
+                  ? new Error("Yuanbao search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Yuanbao request failed: " + boundDetail(String(error))),
+              })
 
-            const decoded = decodeEnvelope(text)
-            const body = Option.isSome(decoded) ? decoded.value.Response : undefined
-            if (!response.ok || body?.Error) {
-              return yield* Effect.fail(apiFailure(response, body, text))
-            }
-            if (!body) {
-              return yield* Effect.fail(new Error("Invalid Yuanbao response: expected a Response envelope"))
-            }
-            if (body.Msg?.trim().toLowerCase() === "hit black query") {
-              return yield* Effect.fail(new Error("Yuanbao refused the query: hit black query" +
-                (body.RequestId ? " (request " + boundDetail(body.RequestId) + ")" : "")))
-            }
-            if (!body.Pages) {
-              return yield* Effect.fail(new Error("Invalid Yuanbao response: missing Pages"))
-            }
-            const results: SearchResult[] = []
-            for (const page of body.Pages) {
-              const decoded = decodePage(page)
-              if (Option.isNone(decoded)) continue
-              const result = toResult(decoded.value)
-              if (result) results.push(result)
-            }
-            if (body.Pages.length > 0 && results.length === 0) {
-              return yield* Effect.fail(new Error("Invalid Yuanbao response: Pages contained no usable results"))
-            }
-            // Unknown informational messages are not classified as refusals,
-            // but an empty response with a message must not pin a retry.
-            if (results.length > 0 || !body.Msg?.trim()) writeCache(queryKey, results)
-            return results
+              const decoded = decodeEnvelope(text)
+              const body = Option.isSome(decoded) ? decoded.value.Response : undefined
+              if (!response.ok || body?.Error) {
+                return yield* Effect.fail(apiFailure(response, body, text))
+              }
+              if (!body) {
+                return yield* Effect.fail(new Error("Invalid Yuanbao response: expected a Response envelope"))
+              }
+              if (body.Msg?.trim().toLowerCase() === "hit black query") {
+                return yield* Effect.fail(new Error("Yuanbao refused the query: hit black query" +
+                  (body.RequestId ? " (request " + boundDetail(body.RequestId) + ")" : "")))
+              }
+              if (!body.Pages) {
+                return yield* Effect.fail(new Error("Invalid Yuanbao response: missing Pages"))
+              }
+              const results: SearchResult[] = []
+              for (const page of body.Pages) {
+                const decoded = decodePage(page)
+                if (Option.isNone(decoded)) continue
+                const result = toResult(decoded.value)
+                if (result) results.push(result)
+              }
+              if (body.Pages.length > 0 && results.length === 0) {
+                return yield* Effect.fail(new Error("Invalid Yuanbao response: Pages contained no usable results"))
+              }
+              // Unknown informational messages are not classified as refusals,
+              // but an empty response with a message must not pin a retry.
+              if (results.length > 0 || !body.Msg?.trim()) writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Every field on a result is optional -- a missing one means "body text
 // unavailable", not an error.
@@ -187,6 +188,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Querit" show up in /connect with an API-key method.
@@ -248,65 +284,83 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch("https://api.querit.ai/v1/search", {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({ query: queryKey, count: SEARCH_SIZE }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Querit search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Querit request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch("https://api.querit.ai/v1/search", {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({ query: queryKey, count: SEARCH_SIZE }),
+                    signal,
+                  }),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Querit search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Querit request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("Querit API error " + response.status + ": " + boundDetail(detail)),
+
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("Querit search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const message = "Querit API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://api.querit.ai/v1/search", "POST", message)
+                    : new Error(message),
+                )
+              }
+
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Querit search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Querit response: " + String(error)),
+              })
+
+              const body = yield* Schema.decodeUnknownEffect(QueritResponse)(json)
+
+              // Querit reports failures in the body too, even on an HTTP 200.
+              // search_id is what support needs to trace the request.
+              if (body.error_code !== undefined && body.error_code !== 200) {
+                return yield* Effect.fail(
+                  new Error(
+                    "Querit API error " +
+                      body.error_code +
+                      ": " +
+                      (body.error_msg ?? "unknown error") +
+                      " (search_id " +
+                      searchIdOf(json) +
+                      ")",
+                  ),
+                )
+              }
+
+              const results = (body.results?.result ?? []).flatMap((item) =>
+                item.url ? [toResult({ ...item, url: item.url })] : [],
               )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Querit response: " + String(error)),
-            })
-
-            const body = yield* Schema.decodeUnknownEffect(QueritResponse)(json)
-
-            // Querit reports failures in the body too, even on an HTTP 200.
-            // search_id is what support needs to trace the request.
-            if (body.error_code !== undefined && body.error_code !== 200) {
-              return yield* Effect.fail(
-                new Error(
-                  "Querit API error " +
-                    body.error_code +
-                    ": " +
-                    (body.error_msg ?? "unknown error") +
-                    " (search_id " +
-                    searchIdOf(json) +
-                    ")",
-                ),
-              )
-            }
-
-            const results = (body.results?.result ?? []).flatMap((item) =>
-              item.url ? [toResult({ ...item, url: item.url })] : [],
-            )
-
-            writeCache(queryKey, results)
-            return results
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

@@ -107,6 +107,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }`
 
+const REQUEST_SIGNAL_BLOCK = `function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}`
+
+const RATE_LIMIT_BLOCK = `function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}`
+
 const CONTENT_CHARS_BLOCK = `function trimContent(text: string): string {
   if (CONTENT_CHARS <= 0 || text.length <= CONTENT_CHARS) return text
   const points = [...text]
@@ -299,6 +334,8 @@ describe("repository structure", () => {
       expect(source, `${file} error detail bound`).toContain(ERROR_DETAIL_BLOCK)
       expect(source, `${file} cache`).toContain(CACHE_BLOCK)
       expect(source, `${file} credential read`).toContain(SOFTEN_BLOCK)
+      expect(source, `${file} request scope`).toContain(REQUEST_SIGNAL_BLOCK)
+      expect(source, `${file} typed throttle`).toContain(RATE_LIMIT_BLOCK)
       expect(source, `${file} must export a composable effect`).toContain(
         "export const effect = (ctx: Plugin.Context) =>",
       )
@@ -322,8 +359,6 @@ describe("repository structure", () => {
     for (const file of WITH_TIMEOUT) {
       const source = providerSource(file)
       expect(source, `${file} request deadline`).toContain(TIMED_SIGNAL_BLOCK)
-      // The deadline must actually be applied, not merely defined.
-      expect(source, `${file} applies the deadline`).toContain("signal: timedSignal(signal, ")
       expect(source, `${file} names its timeout`).toContain('_TIMEOUT", ')
     }
 

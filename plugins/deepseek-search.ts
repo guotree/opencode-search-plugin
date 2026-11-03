@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // DeepSeek opened the search engine behind its own app to developers on
 // 2026-10-17. Billing is per successful request -- not per token, not per
@@ -180,6 +181,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "DeepSeek" show up in /connect with an API-key method.
@@ -241,54 +277,73 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch("https://api.deepseek.com/v1/tools/search", {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    query: queryKey,
-                    count: COUNT,
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch("https://api.deepseek.com/v1/tools/search", {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      query: queryKey,
+                      count: COUNT,
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("DeepSeek search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("DeepSeek request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("DeepSeek search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("DeepSeek request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("DeepSeek API error " + response.status + ": " + boundDetail(detail)),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid DeepSeek response: " + String(error)),
-            })
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("DeepSeek search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
+                  ),
+                )
+                const message = "DeepSeek API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://api.deepseek.com/v1/tools/search", "POST", message)
+                    : new Error(message),
+                )
+              }
 
-            const body = yield* Schema.decodeUnknownEffect(DeepSeekResponse)(json)
-            const results = (body.results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("DeepSeek search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid DeepSeek response: " + String(error)),
+              })
 
-            // DeepSeek charges per dispatch and does not bill failures or empty
-            // results, so a hit that never enters the cache is a query paid for
-            // again on every repeat.
-            writeCache(queryKey, results)
-            return results
+              const body = yield* Schema.decodeUnknownEffect(DeepSeekResponse)(json)
+              const results = (body.results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+
+              // DeepSeek charges per dispatch and does not bill failures or empty
+              // results, so a hit that never enters the cache is a query paid for
+              // again on every repeat.
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

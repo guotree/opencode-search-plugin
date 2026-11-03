@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.6.1] - 2026-11-03
+
+### Fixed
+
+- All twenty-two search adapters now preserve OpenCode's typed HTTP 429 error
+  contract and standard `Retry-After`, enabling host-managed random failover
+  and cooldowns. Other statuses retain their original meaning; Yuanbao keeps
+  its documented business-throttle conversion. Error requests use static
+  credential-free endpoints, and damaged or stalled 429 bodies no longer hide
+  a known throttle. Simulated Brave and Zhipu responses exercised random
+  failover, cooldown exclusion and fixed-provider errors in OpenCode 2.2.5.
+- Request cancellation now covers response-body reading across every adapter,
+  including with `*_TIMEOUT=0`. A scoped controller aborts unfinished bodies
+  on exit; body timeouts retain the provider's timeout diagnosis. Cache hits
+  do not allocate request controllers, and existing no-body error paths remain.
+- You.com skips empty or whitespace-only highlights, Markdown and snippets
+  when selecting fallback content, while preserving selected text formatting
+  and making no additional requests.
+
 ## [4.6.0] - 2026-11-02
 
 ### Added
@@ -741,7 +760,9 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.5.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.1...HEAD
+[4.6.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.0...v4.6.1
+[4.6.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.5.0...v4.6.0
 [4.5.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.1...v4.5.0
 [4.4.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.0...v4.4.1
 [4.4.0]: https://github.com/guotree/opencode-search-plugin/releases/tag/v4.4.0

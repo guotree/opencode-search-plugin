@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Keenable answers with a flat object: `results` carries ranked hits, `mode`
 // echoes the tier that served the call, and there is no failure envelope --
@@ -203,6 +204,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 // Unlike the key-requiring providers in this repo, Keenable never gates on
 // `bound`: keyless access is a first-class mode, so the provider is always in
 // the pool. The key is still read per call, which is why no credential-event
@@ -262,74 +298,87 @@ export const effect = (ctx: Plugin.Context) =>
             }
             if (key) headers["X-API-Key"] = key
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(key ? SEARCH_URL : PUBLIC_URL, {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify({
-                    query: queryKey,
-                    max_results: SEARCH_SIZE,
-                    ...(MODE ? { mode: MODE } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(key ? SEARCH_URL : PUBLIC_URL, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({
+                      query: queryKey,
+                      max_results: SEARCH_SIZE,
+                      ...(MODE ? { mode: MODE } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Keenable search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Keenable request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              // Only a keyed call is metered, so only a keyed call can exhaust
-              // the monthly allowance. The keyless pool is limited by rate, so
-              // it answers 429 instead.
-              if (response.status === 402 && key) {
-                return yield* Effect.fail(
-                  new Error(
-                    "Keenable credits exhausted (HTTP 402): the free monthly " +
-                      "allowance of 100,000 requests is spent. Connect Keenable " +
-                      "in /connect or set OSP_KEENABLE_API_KEY to buy credits, or " +
-                      "wait for the allowance to reset.",
-                  ),
-                )
-              }
-              if (response.status === 429) {
-                const retry = response.headers.get("Retry-After")
-                return yield* Effect.fail(
-                  new Error(
-                    "Keenable rate limited the request (HTTP 429)" +
-                      retryHint(retry) +
-                      (key
-                        ? ""
-                        : ". The keyless pool allows 1,000 requests an hour and " +
-                          "10 a second per IP; set OSP_KEENABLE_API_KEY to spend your " +
-                          "own 100,000-request monthly allowance instead."),
-                  ),
-                )
-              }
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("Keenable search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Keenable request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("Keenable API error " + response.status + ": " + boundDetail(detail)),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Keenable response: " + String(error)),
-            })
+              if (!response.ok) {
+                // Only a keyed call is metered, so only a keyed call can exhaust
+                // the monthly allowance. The keyless pool is limited by rate, so
+                // it answers 429 instead.
+                if (response.status === 402 && key) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Keenable credits exhausted (HTTP 402): the free monthly " +
+                        "allowance of 100,000 requests is spent. Connect Keenable " +
+                        "in /connect or set OSP_KEENABLE_API_KEY to buy credits, or " +
+                        "wait for the allowance to reset.",
+                    ),
+                  )
+                }
+                if (response.status === 429) {
+                  const retry = response.headers.get("Retry-After")
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      key ? SEARCH_URL : PUBLIC_URL,
+                      "POST",
+                      "Keenable rate limited the request (HTTP 429)" +
+                        retryHint(retry) +
+                        (key
+                          ? ""
+                          : ". The keyless pool allows 1,000 requests an hour and " +
+                            "10 a second per IP; set OSP_KEENABLE_API_KEY to spend your " +
+                            "own 100,000-request monthly allowance instead."),
+                    ),
+                  )
+                }
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("Keenable search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                })
+                return yield* Effect.fail(
+                  new Error("Keenable API error " + response.status + ": " + boundDetail(detail)),
+                )
+              }
 
-            const body = yield* Schema.decodeUnknownEffect(KeenableResponse)(json)
-            const results = (body.results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
-            writeCache(queryKey, results)
-            return results
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("Keenable search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Keenable response: " + String(error)),
+              })
+
+              const body = yield* Schema.decodeUnknownEffect(KeenableResponse)(json)
+              const results = (body.results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

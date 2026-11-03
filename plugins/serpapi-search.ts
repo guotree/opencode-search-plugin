@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // SerpApi returns Google's organic results as JSON. Only `organic_results`
 // carries links an agent reads; answer boxes and knowledge graphs have no
@@ -183,6 +184,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "SerpApi" show up in /connect with an API-key method.
@@ -252,50 +288,68 @@ export const effect = (ctx: Plugin.Context) =>
             if (HL) url.searchParams.set("hl", HL)
             if (TBS) url.searchParams.set("tbs", TBS)
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(url, {
-                  headers: {
-                    Accept: "application/json",
-                  },
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("SerpApi search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("SerpApi request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(url, {
+                    headers: {
+                      Accept: "application/json",
+                    },
+                    signal,
+                  }),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("SerpApi search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("SerpApi request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("SerpApi API error " + response.status + ": " + boundDetail(detail)),
+
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("SerpApi search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const message = "SerpApi API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://serpapi.com/search.json", "GET", message)
+                    : new Error(message),
+                )
+              }
+
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("SerpApi search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid SerpApi response: " + String(error)),
+              })
+
+              // A response that fails the schema is named rather than surfaced
+              // as a raw decode dump, matching the JSON-parse failure above.
+              const body = yield* Schema.decodeUnknownEffect(SerpApiResponse)(json).pipe(
+                Effect.mapError((error) => new Error("Invalid SerpApi response: " + String(error))),
               )
-            }
+              // One malformed item must not cost the whole page: a hit without
+              // a link is dropped, the way querit and linkup drop theirs.
+              const results = (body.organic_results ?? []).flatMap((item) =>
+                item.link ? [toResult({ ...item, link: item.link })] : [],
+              )
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid SerpApi response: " + String(error)),
-            })
-
-            // A response that fails the schema is named rather than surfaced
-            // as a raw decode dump, matching the JSON-parse failure above.
-            const body = yield* Schema.decodeUnknownEffect(SerpApiResponse)(json).pipe(
-              Effect.mapError((error) => new Error("Invalid SerpApi response: " + String(error))),
-            )
-            // One malformed item must not cost the whole page: a hit without
-            // a link is dropped, the way querit and linkup drop theirs.
-            const results = (body.organic_results ?? []).flatMap((item) =>
-              item.link ? [toResult({ ...item, link: item.link })] : [],
-            )
-
-            writeCache(queryKey, results)
-            return results
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Bocha answers inside a Bing-compatible envelope: `code` and `msg` mirror the
 // HTTP status, `log_id` names the call in Bocha's own logs, and
@@ -254,6 +255,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Bocha" show up in /connect with an API-key method.
@@ -316,91 +352,110 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    query: queryKey,
-                    count: COUNT,
-                    summary: SUMMARY,
-                    // Omitted rather than sent as "noLimit": the two mean the
-                    // same thing, and the docs describe noLimit as the search
-                    // rewriting time ranges on its own.
-                    ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      query: queryKey,
+                      count: COUNT,
+                      summary: SUMMARY,
+                      // Omitted rather than sent as "noLimit": the two mean the
+                      // same thing, and the docs describe noLimit as the search
+                      // rewriting time ranges on its own.
+                      ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Bocha search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Bocha request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("Bocha search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Bocha request failed: " + String(error)),
               })
-              const described = boundDetail(describeFailure(String(detail)))
 
-              // Bocha names each refusal in its own body, and the three below
-              // carry a fix the user can act on -- a status code would send
-              // them hunting for an auth problem that was really a balance.
-              if (response.status === 401) {
-                return yield* Effect.fail(
-                  new Error(
-                    "Bocha rejected the API key (HTTP 401): " +
-                      described +
-                      ". Connect Bocha in /connect or set OSP_BOCHA_API_KEY to a key from https://open.bocha.cn",
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("Bocha search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
                   ),
                 )
-              }
-              if (response.status === 403) {
+                const described = boundDetail(describeFailure(String(detail)))
+
+                // Bocha names each refusal in its own body, and the three below
+                // carry a fix the user can act on -- a status code would send
+                // them hunting for an auth problem that was really a balance.
+                if (response.status === 401) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Bocha rejected the API key (HTTP 401): " +
+                        described +
+                        ". Connect Bocha in /connect or set OSP_BOCHA_API_KEY to a key from https://open.bocha.cn",
+                    ),
+                  )
+                }
+                if (response.status === 403) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Bocha balance is exhausted (HTTP 403): " +
+                        described +
+                        ". Top up at https://open.bocha.cn",
+                    ),
+                  )
+                }
+                if (response.status === 429) {
+                  const retry = response.headers.get("Retry-After")
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      SEARCH_URL,
+                      "POST",
+                      "Bocha rate limited the request (HTTP 429)" +
+                        retryHint(retry) +
+                        ": " +
+                        described +
+                        ". The request cap scales with the account's recharge amount",
+                    ),
+                  )
+                }
                 return yield* Effect.fail(
-                  new Error(
-                    "Bocha balance is exhausted (HTTP 403): " +
-                      described +
-                      ". Top up at https://open.bocha.cn",
-                  ),
+                  new Error("Bocha API error " + response.status + ": " + described),
                 )
               }
-              if (response.status === 429) {
-                const retry = response.headers.get("Retry-After")
-                return yield* Effect.fail(
-                  new Error(
-                    "Bocha rate limited the request (HTTP 429)" +
-                      retryHint(retry) +
-                      ": " +
-                      described +
-                      ". The request cap scales with the account's recharge amount",
-                  ),
-                )
-              }
-              return yield* Effect.fail(
-                new Error("Bocha API error " + response.status + ": " + described),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Bocha response: " + String(error)),
-            })
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("Bocha search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Bocha response: " + String(error)),
+              })
 
-            const body = yield* Schema.decodeUnknownEffect(BochaResponse)(json)
-            const results = (body.data?.webPages?.value ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const body = yield* Schema.decodeUnknownEffect(BochaResponse)(json)
+              const results = (body.data?.webPages?.value ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
 
-            writeCache(queryKey, results)
-            return results
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

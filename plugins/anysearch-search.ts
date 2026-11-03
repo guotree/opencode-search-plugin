@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // AnySearch wraps every response in an envelope: code 0 / "success" on the happy
 // path, code -1 with a human-readable message otherwise. request_id is the only
@@ -180,6 +181,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 // Unlike the other providers in this repo, AnySearch never gates on `bound`:
 // anonymous access is a first-class mode, so the provider is always in the
 // pool. The key is still read per call, which is why no credential-event
@@ -235,78 +271,97 @@ export const effect = (ctx: Plugin.Context) =>
             }
             if (key) headers.Authorization = "Bearer " + key
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch("https://api.anysearch.com/v1/search", {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify({
-                    query: queryKey,
-                    max_results: SEARCH_SIZE,
-                    ...(TAG ? { tag: TAG } : {}),
-                    ...(ZONE ? { zone: ZONE } : {}),
-                    ...(LANGUAGE ? { language: LANGUAGE } : {}),
-                    format: FORMAT,
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch("https://api.anysearch.com/v1/search", {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({
+                      query: queryKey,
+                      max_results: SEARCH_SIZE,
+                      ...(TAG ? { tag: TAG } : {}),
+                      ...(ZONE ? { zone: ZONE } : {}),
+                      ...(LANGUAGE ? { language: LANGUAGE } : {}),
+                      format: FORMAT,
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("AnySearch search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("AnySearch request failed: " + String(error)),
-            })
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("AnySearch search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("AnySearch request failed: " + String(error)),
+              })
 
-            if (!response.ok) {
-              // A 402 body can hand back freshly generated credentials, so it
-              // is deliberately never echoed into the conversation.
-              if (response.status === 402) {
+              if (!response.ok) {
+                // A 402 body can hand back freshly generated credentials, so it
+                // is deliberately never echoed into the conversation.
+                if (response.status === 402) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "AnySearch quota exhausted (HTTP 402). Set OSP_ANYSEARCH_API_KEY " +
+                        "or connect AnySearch in /connect to continue. The response " +
+                        "body is withheld because it may contain credentials.",
+                    ),
+                  )
+                }
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("AnySearch search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
+                  ),
+                )
+                const message = "AnySearch API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://api.anysearch.com/v1/search", "POST", message)
+                    : new Error(message),
+                )
+              }
+
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("AnySearch search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid AnySearch response: " + String(error)),
+              })
+
+              const body = yield* Schema.decodeUnknownEffect(AnySearchResponse)(json)
+
+              // AnySearch reports failures in the envelope too, even on HTTP
+              // 200. request_id is what support needs to trace the request.
+              if (body.code !== 0) {
                 return yield* Effect.fail(
                   new Error(
-                    "AnySearch quota exhausted (HTTP 402). Set OSP_ANYSEARCH_API_KEY " +
-                      "or connect AnySearch in /connect to continue. The response " +
-                      "body is withheld because it may contain credentials.",
+                    "AnySearch API error " +
+                      body.code +
+                      ": " +
+                      (body.message ?? "unknown error") +
+                      " (request_id " +
+                      (body.request_id ?? "unknown") +
+                      ")",
                   ),
                 )
               }
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
-              })
-              return yield* Effect.fail(
-                new Error("AnySearch API error " + response.status + ": " + boundDetail(detail)),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid AnySearch response: " + String(error)),
-            })
-
-            const body = yield* Schema.decodeUnknownEffect(AnySearchResponse)(json)
-
-            // AnySearch reports failures in the envelope too, even on HTTP
-            // 200. request_id is what support needs to trace the request.
-            if (body.code !== 0) {
-              return yield* Effect.fail(
-                new Error(
-                  "AnySearch API error " +
-                    body.code +
-                    ": " +
-                    (body.message ?? "unknown error") +
-                    " (request_id " +
-                    (body.request_id ?? "unknown") +
-                    ")",
-                ),
-              )
-            }
-
-            const results = (body.data?.results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
-            writeCache(queryKey, results)
-            return results
+              const results = (body.data?.results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

@@ -33,7 +33,7 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 
 `"random"` selects an available provider and keeps using it within the session. A rate limit recognized by the host can move the session to another provider. Pinning an ID such as `"osp-brave"` keeps that provider selected even when a request fails; `false` disables web search.
 
-Failover depends on the adapter preserving OpenCode's typed HTTP 429 error contract. An ordinary error containing "429" in its message is insufficient, so it is not a guarantee for every adapter. Yuanbao implements this contract for both HTTP 429 and its `RequestLimitExceeded` business error; its failover has been verified in an isolated OpenCode 2.2.5 instance with simulated responses.
+All twenty-two adapters preserve OpenCode's typed HTTP 429 contract and the standard `Retry-After` header. An ordinary error containing "429" is insufficient. Yuanbao also converts its documented `RequestLimitExceeded` business error; other error statuses are not reclassified as throttles. The host owns switching and cooldowns: within one WebSearch service instance, sessions share provider cooldowns, and a missing or invalid `Retry-After` defaults to 60 seconds in OpenCode 2.2.5. Random failover and cooldown exclusion were exercised with simulated Brave and Zhipu responses in an isolated 2.2.5 host; Yuanbao was verified separately with simulated responses.
 
 <!-- TODO: replace this comment with a 10-second GIF:
      set websearch.provider -> ask a question -> provider responds with sources -->
@@ -227,7 +227,7 @@ Search providers work independently of the model consuming their results: choosi
 | Variable | Default | Description |
 | --- | --- | --- |
 | `<PROVIDER>_CACHE_TTL` | `600000` | Duration in milliseconds to reuse cached responses for identical normalized queries (`0` disables caching). A hit refreshes the entry's recency so hot queries survive eviction; an empty result set is remembered for at most 30 seconds so a transient upstream wobble does not lock retries out for the full window |
-| `<PROVIDER>_TIMEOUT` | `25000` | Timeout in milliseconds before failing a request (`0` removes timeout while preserving cancellation) |
+| `<PROVIDER>_TIMEOUT` | `25000` | Deadline in milliseconds covering the request and response-body reading (`0` removes the deadline while preserving cancellation in both phases) |
 
 ### AnySearch
 
@@ -421,6 +421,8 @@ The built-in `web_search` tool in Chat Completions is a different capability —
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | Language / country code, e.g., `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | Freshness filter: `day`, `week`, `month`, `year`, or `YYYY-MM-DDtoYYYY-MM-DD` |
 
+Content is selected from the first nonblank value in highlights, Markdown, snippets, then description. Empty arrays and whitespace-only text do not hide usable fallback content; the selected text retains its original Markdown indentation and line breaks. This selection uses only fields already returned by the service and makes no extra requests.
+
 ### Yuanbao
 
 Available from **v4.6.0**, including the standalone `plugins/yuanbao-search.ts` provider.
@@ -485,7 +487,7 @@ Zhipu here is the cn site ([open.bigmodel.cn](https://open.bigmodel.cn)), with k
 1. OpenCode issues a search request to the active provider.
 2. The normalized query (trimmed of leading/trailing whitespace with internal whitespace collapsed) is checked against an in-memory cache. Cache hits return immediately without an external API request.
 3. On a cache miss, the API key is freshly resolved so that keys rotated in `/connect` take effect immediately.
-4. The request is dispatched with an abort timeout (`<PROVIDER>_TIMEOUT`, default 25s) to prevent unresponsive upstreams from hanging the session.
+4. The request and response-body reading share one cancellation scope and deadline (`<PROVIDER>_TIMEOUT`, default 25s). Cancellation also aborts an in-progress body download, including when the deadline is disabled. Exiting the scope aborts any unconsumed response body.
 5. The response is schema-validated, mapped to `{ url, title, content, time }`, and cached for subsequent identical queries.
 
 Publication dates are parsed from relative expressions (`3 hours ago`, `3小时前`), absolute dates (`Sep 30, 2026`, `31 Mar 2026`), and ISO 8601 timestamps. Incomplete date strings that could cause lenient parsers to infer an incorrect year (such as `Nov 1`) are ignored.

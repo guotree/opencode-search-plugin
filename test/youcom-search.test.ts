@@ -188,4 +188,24 @@ describe("youcom-search", () => {
       "d",
     ])
   })
+
+  it.each([
+    [{ contents: { highlights: [], markdown: "# body" } }, "# body"],
+    [{ contents: { highlights: ["", " "], markdown: "# body" } }, "# body"],
+    [{ contents: { markdown: " \n " }, snippets: ["snippet"] }, "snippet"],
+    [{ snippets: [], description: "description" }, "description"],
+    [{ contents: { markdown: "  code\n\n" }, description: "fallback" }, "  code\n\n"],
+    [{ contents: { highlights: [" "], markdown: " " }, snippets: ["", ""], description: " " }, ""],
+  ])("selects usable text without changing its formatting: %j", async (fields, expected) => {
+    const { harness } = await bind()
+    stubFetch(() => jsonResponse({
+      results: { web: [{ url: "https://example.com/content", ...fields }] },
+    }))
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "content fallback" }),
+    )) as HitResult[]
+
+    expect(results[0]!.content).toBe(expected)
+  })
 })

@@ -33,7 +33,7 @@ opencode plugin add opencode-search-plugin
 
 `"random"` 选择一个可用 provider，并在当前会话中保持使用；宿主识别到限流后可切换至其他 provider。填写具体 ID（如 `"osp-brave"`）会固定该 provider，即使请求失败也不自动切换；设为 `false` 则禁用联网搜索。
 
-自动回退要求适配器保留 OpenCode 约定的 HTTP 429 错误类型。普通错误消息中出现“429”不足以触发切换，因此不能保证每个适配器都支持回退。元宝已为 HTTP 429 和业务码 `RequestLimitExceeded` 实现这一约定，并在隔离的 OpenCode 2.2.5 实例中使用模拟响应验证过切换行为。
+全部 22 个适配器都保留 OpenCode 约定的 HTTP 429 错误类型及标准 `Retry-After` 响应头，普通错误消息中出现“429”不足以触发切换。元宝另将官方定义的业务码 `RequestLimitExceeded` 转为限流错误；其他错误状态不重新分类为限流。切换和冷却由宿主管理：同一个 WebSearch 服务实例中的会话共享 provider 冷却状态，OpenCode 2.2.5 在 `Retry-After` 缺失或无效时默认冷却 60 秒。已在隔离的 2.2.5 宿主中使用模拟 Brave、智谱响应验证随机切换和冷却排除；元宝此前已单独使用模拟响应验证。
 
 <!-- TODO: 录一段 10 秒 GIF：
      配置 websearch.provider -> 提问 -> provider 正常应答带引用 -->
@@ -227,7 +227,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `<PROVIDER>_CACHE_TTL` | `600000` | 相同归一化查询复用缓存响应的毫秒数（`0` 表示禁用缓存）。命中会刷新条目的最近使用顺序，常用查询不会被先来后到挤出；空结果最多记忆 30 秒，避免上游偶发抖动把重试锁死整个缓存窗口 |
-| `<PROVIDER>_TIMEOUT` | `25000` | 单次请求的超时毫秒数（`0` 表示取消超时限制，但保留取消信号） |
+| `<PROVIDER>_TIMEOUT` | `25000` | 覆盖请求和响应正文读取的超时毫秒数（`0` 取消超时限制，两个阶段均保留取消信号） |
 
 ### AnySearch
 
@@ -421,6 +421,8 @@ Chat Completions 的内置 `web_search` 工具是另一种能力——由模型�
 | `YOUCOM_LANGUAGE` / `YOUCOM_COUNTRY` | — | 语言 / 国家代码，例如 `EN` / `US` |
 | `YOUCOM_FRESHNESS` | — | 时效筛选：`day`、`week`、`month`、`year` 或 `YYYY-MM-DDtoYYYY-MM-DD` |
 
+内容按高亮段落、Markdown、摘要、描述的顺序，选择第一个包含非空白文本的字段。空数组和纯空白文本不会遮蔽后续可用内容；选中的文本保留原有 Markdown 缩进和换行。该过程只使用服务已经返回的字段，不发起额外请求。
+
 ### Yuanbao
 
 自 **v4.6.0** 起提供，也可独立使用 `plugins/yuanbao-search.ts`。
@@ -485,7 +487,7 @@ Z.ai 是智谱的国际站，拥有独立的账号体系：密钥从 [z.ai](http
 1. OpenCode 向当前分配的 provider 发起搜索请求。
 2. 归一化后的搜索词（去除首尾空白并合并多余空格）优先匹配内存缓存。命中缓存时直接返回结果，不发起外部 API 请求。
 3. 未命中缓存时，重新解析 API key，确保在 `/connect` 中轮换的密钥即时生效。
-4. 请求发出时附带超时限制（`<PROVIDER>_TIMEOUT`，默认 25s），防止无响应的上游服务阻塞会话。
+4. 请求和响应正文读取共用一个取消作用域及期限（`<PROVIDER>_TIMEOUT`，默认 25s）。即使关闭超时，取消仍会中止正在进行的正文下载；退出作用域时也会中止未消费的响应正文。
 5. 返回的数据经过 schema 校验，映射为 `{ url, title, content, time }` 并写入缓存供后续相同查询复用。
 
 时间解析支持相对时间（`3 hours ago`、`3小时前`）、绝对格式（`Sep 30, 2026`、`31 Mar 2026`）和 ISO 8601 时间戳。不完整的日期文本（如缺少年份的 `Nov 1`）会被直接忽略，避免宽容解析器推导出错误的年份。

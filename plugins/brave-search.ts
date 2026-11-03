@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Brave returns { web: { results: [...] } } beside several result types this
 // plugin does not read (news, videos, discussions, infobox). Failures arrive as
@@ -187,6 +188,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Brave Search" show up in /connect with an API-key method.
@@ -255,47 +291,64 @@ export const effect = (ctx: Plugin.Context) =>
             if (SEARCH_LANG) url.searchParams.set("search_lang", SEARCH_LANG)
             if (FRESHNESS) url.searchParams.set("freshness", FRESHNESS)
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(url, {
-                  headers: {
-                    Accept: "application/json",
-                    "X-Subscription-Token": key,
-                  },
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Brave search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Brave request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(url, {
+                    headers: {
+                      Accept: "application/json",
+                      "X-Subscription-Token": key,
+                    },
+                    signal,
+                  }),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("Brave search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Brave request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error(
-                  "Brave API error " + response.status + ": " + boundDetail(detail),
-                ),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Brave response: " + String(error)),
-            })
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("Brave search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
+                  ),
+                )
+                const message = "Brave API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://api.search.brave.com/res/v1/web/search", "GET", message)
+                    : new Error(message),
+                )
+              }
 
-            const body = yield* Schema.decodeUnknownEffect(BraveResponse)(json)
-            const results = (body.web?.results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("Brave search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Brave response: " + String(error)),
+              })
 
-            writeCache(queryKey, results)
-            return results
+              const body = yield* Schema.decodeUnknownEffect(BraveResponse)(json)
+              const results = (body.web?.results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

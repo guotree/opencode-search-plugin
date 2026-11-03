@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Linkup returns { results: [...] } with no body-level error envelope: failures
 // are HTTP status codes only. Text and image results share one list; image
@@ -173,6 +174,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Linkup" show up in /connect with an API-key method.
@@ -234,62 +270,81 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch("https://api.linkup.so/v1/search", {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    q: queryKey,
-                    depth: DEPTH,
-                    // The leanest outputType, and the only one this contract
-                    // can carry: `sourcedAnswer` adds an AI answer on top of
-                    // source snippets that are the same text `results[].content`
-                    // already holds (measured -- the lengths came back
-                    // identical), and WebSearch.Result has no field for an
-                    // answer to live in. `structured` hands back the same
-                    // sources again.
-                    outputType: "searchResults",
-                    maxResults: SEARCH_SIZE,
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch("https://api.linkup.so/v1/search", {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      q: queryKey,
+                      depth: DEPTH,
+                      // The leanest outputType, and the only one this contract
+                      // can carry: `sourcedAnswer` adds an AI answer on top of
+                      // source snippets that are the same text `results[].content`
+                      // already holds (measured -- the lengths came back
+                      // identical), and WebSearch.Result has no field for an
+                      // answer to live in. `structured` hands back the same
+                      // sources again.
+                      outputType: "searchResults",
+                      maxResults: SEARCH_SIZE,
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Linkup search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Linkup request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("Linkup search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Linkup request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("Linkup API error " + response.status + ": " + boundDetail(detail)),
+
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("Linkup search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
+                  ),
+                )
+                const message = "Linkup API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://api.linkup.so/v1/search", "POST", message)
+                    : new Error(message),
+                )
+              }
+
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("Linkup search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Linkup response: " + String(error)),
+              })
+
+              const body = yield* Schema.decodeUnknownEffect(LinkupResponse)(json)
+              const results = (body.results ?? []).flatMap((item) =>
+                item.url && item.type !== "image"
+                  ? [toResult({ ...item, url: item.url })]
+                  : [],
               )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Linkup response: " + String(error)),
-            })
-
-            const body = yield* Schema.decodeUnknownEffect(LinkupResponse)(json)
-            const results = (body.results ?? []).flatMap((item) =>
-              item.url && item.type !== "image"
-                ? [toResult({ ...item, url: item.url })]
-                : [],
-            )
-
-            writeCache(queryKey, results)
-            return results
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

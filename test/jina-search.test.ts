@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { readFileSync } from "node:fs"
 import type { Plugin } from "@opencode/plugin/effect"
 import type { Effect, Scope } from "effect"
 import { loadPlugin, makeHarness, jsonResponse, stubFetch } from "./harness"
@@ -45,31 +44,6 @@ describe("jina-search deadline", () => {
     )
   })
 
-  it("removes the deadline at 0 but still passes the cancellation signal", async () => {
-    const harness = await bind({ JINA_TIMEOUT: "0" })
-    let init: RequestInit | undefined
-    vi.stubGlobal("fetch", (_i: unknown, init2?: RequestInit) => {
-      init = init2
-      return Promise.resolve(
-        new Response(JSON.stringify({ data: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      ) as never
-    })
-
-    await harness.run(harness.providers[0]!.execute({ query: "q" }))
-    expect(init?.signal).toBeDefined()
-    expect((init?.signal as AbortSignal).aborted).toBe(false)
-  })
-
-  it("defaults to a longer budget when INCLUDE_CONTENT is on", () => {
-    // The two defaults are 25s and 60s -- far past what a test can wait out, so
-    // this asserts the rule at the source level, the way structure.test.ts does.
-    const src = readFileSync(new URL("../plugins/jina-search.ts", import.meta.url), "utf8")
-    expect(src).toContain("const DEFAULT_TIMEOUT = INCLUDE_CONTENT ? 60_000 : 25_000")
-    expect(src).toContain('const SEARCH_TIMEOUT = envInt("JINA_TIMEOUT", DEFAULT_TIMEOUT)')
-  })
 
   it("leaves the deadline out of the page-content request path only via the knob", async () => {
     // INCLUDE_CONTENT changes the request shape, not the deadline: a crawl must

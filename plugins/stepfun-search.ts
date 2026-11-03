@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // StepFun's search endpoint is a bare retrieval call: a query in, ranked pages
 // out, with no model in the loop. Its hit carries six documented fields, and
@@ -293,6 +294,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "StepFun Search" show up in /connect with an API-key method.
@@ -355,114 +391,132 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    // Sent intact: the reference documents no length ceiling and
-                    // no rewriting, so the agent's words are what get searched.
-                    query: queryKey,
-                    // Always sent. 10 is the API's own default, and naming it
-                    // keeps the knob honest.
-                    n: COUNT,
-                    // Omitted rather than sent as "": the two mean the same
-                    // thing (every scenario), and an empty string is not a
-                    // documented value.
-                    ...(CATEGORY ? { category: CATEGORY } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      // Sent intact: the reference documents no length ceiling and
+                      // no rewriting, so the agent's words are what get searched.
+                      query: queryKey,
+                      // Always sent. 10 is the API's own default, and naming it
+                      // keeps the knob honest.
+                      n: COUNT,
+                      // Omitted rather than sent as "": the two mean the same
+                      // thing (every scenario), and an empty string is not a
+                      // documented value.
+                      ...(CATEGORY ? { category: CATEGORY } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("StepFun search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("StepFun request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("StepFun search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("StepFun request failed: " + String(error)),
               })
-              const described = describeFailure(String(detail))
-              const quoted = described === "" ? "" : ": " + boundDetail(described)
 
-              // Each refusal below carries a fix the user can act on; a bare
-              // status code would send them hunting for the wrong one.
-              if (response.status === 401) {
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("StepFun search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const described = describeFailure(String(detail))
+                const quoted = described === "" ? "" : ": " + boundDetail(described)
+
+                // Each refusal below carries a fix the user can act on; a bare
+                // status code would send them hunting for the wrong one.
+                if (response.status === 401) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "StepFun rejected the API key (HTTP 401)" +
+                        quoted +
+                        ". Connect StepFun Search in /connect or set OSP_STEPFUN_API_KEY to a key from https://platform.stepfun.com/interface-key",
+                    ),
+                  )
+                }
+                // 402 is the documented "balance insufficient" status; an
+                // organization project key adds an `insufficient_credit` type.
+                if (response.status === 402) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "StepFun balance is insufficient (HTTP 402)" +
+                        quoted +
+                        ". Top up at https://platform.stepfun.com",
+                    ),
+                  )
+                }
+                // 451 is StepFun's content-review refusal, and it can be raised
+                // by either the query or the pages it found: rephrasing is the
+                // only lever the caller has.
+                if (response.status === 451) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "StepFun refused the search on content review (HTTP 451)" +
+                        quoted +
+                        ". Rephrase the query; a moderation refusal is not a key or quota problem",
+                    ),
+                  )
+                }
+                if (response.status === 429) {
+                  // The search endpoint publishes no quota of its own -- it shares
+                  // the account's tiered concurrency/RPM budget, which scales with
+                  // cumulative recharge -- so the advice is to wait, not to buy a
+                  // search-specific tier.
+                  const retry = response.headers.get("Retry-After")
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      SEARCH_URL,
+                      "POST",
+                      "StepFun rate limited the search (HTTP 429)" +
+                        retryHint(retry) +
+                        quoted +
+                        ". Searches share the account's rate-limit tier, so wait for the window to reset or run fewer at once",
+                    ),
+                  )
+                }
                 return yield* Effect.fail(
-                  new Error(
-                    "StepFun rejected the API key (HTTP 401)" +
-                      quoted +
-                      ". Connect StepFun Search in /connect or set OSP_STEPFUN_API_KEY to a key from https://platform.stepfun.com/interface-key",
-                  ),
+                  new Error("StepFun API error " + response.status + quoted),
                 )
               }
-              // 402 is the documented "balance insufficient" status; an
-              // organization project key adds an `insufficient_credit` type.
-              if (response.status === 402) {
-                return yield* Effect.fail(
-                  new Error(
-                    "StepFun balance is insufficient (HTTP 402)" +
-                      quoted +
-                      ". Top up at https://platform.stepfun.com",
-                  ),
-                )
-              }
-              // 451 is StepFun's content-review refusal, and it can be raised
-              // by either the query or the pages it found: rephrasing is the
-              // only lever the caller has.
-              if (response.status === 451) {
-                return yield* Effect.fail(
-                  new Error(
-                    "StepFun refused the search on content review (HTTP 451)" +
-                      quoted +
-                      ". Rephrase the query; a moderation refusal is not a key or quota problem",
-                  ),
-                )
-              }
-              if (response.status === 429) {
-                // The search endpoint publishes no quota of its own -- it shares
-                // the account's tiered concurrency/RPM budget, which scales with
-                // cumulative recharge -- so the advice is to wait, not to buy a
-                // search-specific tier.
-                const retry = response.headers.get("Retry-After")
-                return yield* Effect.fail(
-                  new Error(
-                    "StepFun rate limited the search (HTTP 429)" +
-                      retryHint(retry) +
-                      quoted +
-                      ". Searches share the account's rate-limit tier, so wait for the window to reset or run fewer at once",
-                  ),
-                )
-              }
-              return yield* Effect.fail(
-                new Error("StepFun API error " + response.status + quoted),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid StepFun response: " + String(error)),
-            })
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("StepFun search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid StepFun response: " + String(error)),
+              })
 
-            const body = yield* Schema.decodeUnknownEffect(StepFunResponse)(json)
-            const results = (body.results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const body = yield* Schema.decodeUnknownEffect(StepFunResponse)(json)
+              const results = (body.results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
 
-            // A search is billed per dispatch, and the docs promise no refund
-            // for an empty one, so a result that never enters the cache is a
-            // query paid for again on every repeat.
-            writeCache(queryKey, results)
-            return results
+              // A search is billed per dispatch, and the docs promise no refund
+              // for an empty one, so a result that never enters the cache is a
+              // query paid for again on every repeat.
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Moonshot AI (Kimi) publishes the same search tool on two sites with two
 // consoles, two price lists and two currencies: the China site
@@ -290,6 +291,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Moonshot CN Search" show up in /connect with an API-key method.
@@ -352,105 +388,123 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    text_query: queryKey,
-                    limit: COUNT,
-                    // Sent only when asked: the snippet is the cheap default,
-                    // and the full page body behind it costs context tokens.
-                    ...(INCLUDE_CONTENT ? { include_content: true } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      text_query: queryKey,
+                      limit: COUNT,
+                      // Sent only when asked: the snippet is the cheap default,
+                      // and the full page body behind it costs context tokens.
+                      ...(INCLUDE_CONTENT ? { include_content: true } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Moonshot CN search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Moonshot CN request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Moonshot CN search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Moonshot CN request failed: " + String(error)),
               })
-              const described = describeFailure(String(detail))
-              // 401 and 403 are documented to arrive with no error body, so
-              // the detail is quoted only when there is any.
-              const quoted = described === "" ? "" : ": " + boundDetail(described)
 
-              // A 401 here is most often the other site's key: the two sites
-              // issue keys from separate consoles, and the fix is a different
-              // provider, not a different string in the same box.
-              if (response.status === 401) {
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("Moonshot CN search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const described = describeFailure(String(detail))
+                // 401 and 403 are documented to arrive with no error body, so
+                // the detail is quoted only when there is any.
+                const quoted = described === "" ? "" : ": " + boundDetail(described)
+
+                // A 401 here is most often the other site's key: the two sites
+                // issue keys from separate consoles, and the fix is a different
+                // provider, not a different string in the same box.
+                if (response.status === 401) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Moonshot CN rejected the API key (HTTP 401)" +
+                        quoted +
+                        ". Connect Moonshot CN Search in /connect or set OSP_MOONSHOT_CN_API_KEY to a key from https://platform.kimi.com/console/api-keys. If the key was issued on the international site (https://platform.kimi.ai), it belongs to Moonshot Search (osp-moonshot) instead",
+                    ),
+                  )
+                }
+                // The reference lists 403 as "account not activated or
+                // disabled", with no body: the fix is at the console, not in
+                // the request.
+                if (response.status === 403) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Moonshot CN reports the account as not activated or disabled (HTTP 403)" +
+                        quoted +
+                        ". Activate or top up the account in the console: https://platform.kimi.com",
+                    ),
+                  )
+                }
+                if (response.status === 429) {
+                  // The refusal headers are `X-RateLimit-*`; `X-RateLimit-Reset`
+                  // is a Unix-seconds timestamp, reported here as the seconds
+                  // until the window reopens.
+                  const reset = response.headers.get("X-RateLimit-Reset")
+                  const wait =
+                    reset !== null && /^\d+$/.test(reset)
+                      ? Math.max(0, Number(reset) - Math.floor(Date.now() / 1000))
+                      : undefined
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      SEARCH_URL,
+                      "POST",
+                      "Moonshot CN rate limited the search (HTTP 429)" +
+                        (wait !== undefined ? ", retry in " + wait + "s" : "") +
+                        quoted +
+                        ". The search QPS cap is tiered by the account's cumulative recharge (1 QPS at Tier0, up to 50); wait for the window to reset or run fewer searches at once",
+                    ),
+                  )
+                }
                 return yield* Effect.fail(
-                  new Error(
-                    "Moonshot CN rejected the API key (HTTP 401)" +
-                      quoted +
-                      ". Connect Moonshot CN Search in /connect or set OSP_MOONSHOT_CN_API_KEY to a key from https://platform.kimi.com/console/api-keys. If the key was issued on the international site (https://platform.kimi.ai), it belongs to Moonshot Search (osp-moonshot) instead",
-                  ),
+                  new Error("Moonshot CN API error " + response.status + quoted),
                 )
               }
-              // The reference lists 403 as "account not activated or
-              // disabled", with no body: the fix is at the console, not in
-              // the request.
-              if (response.status === 403) {
-                return yield* Effect.fail(
-                  new Error(
-                    "Moonshot CN reports the account as not activated or disabled (HTTP 403)" +
-                      quoted +
-                      ". Activate or top up the account in the console: https://platform.kimi.com",
-                  ),
-                )
-              }
-              if (response.status === 429) {
-                // The refusal headers are `X-RateLimit-*`; `X-RateLimit-Reset`
-                // is a Unix-seconds timestamp, reported here as the seconds
-                // until the window reopens.
-                const reset = response.headers.get("X-RateLimit-Reset")
-                const wait =
-                  reset !== null && /^\d+$/.test(reset)
-                    ? Math.max(0, Number(reset) - Math.floor(Date.now() / 1000))
-                    : undefined
-                return yield* Effect.fail(
-                  new Error(
-                    "Moonshot CN rate limited the search (HTTP 429)" +
-                      (wait !== undefined ? ", retry in " + wait + "s" : "") +
-                      quoted +
-                      ". The search QPS cap is tiered by the account's cumulative recharge (1 QPS at Tier0, up to 50); wait for the window to reset or run fewer searches at once",
-                  ),
-                )
-              }
-              return yield* Effect.fail(
-                new Error("Moonshot CN API error " + response.status + quoted),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Moonshot CN response: " + String(error)),
-            })
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Moonshot CN search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Moonshot CN response: " + String(error)),
+              })
 
-            const body = yield* Schema.decodeUnknownEffect(MoonshotCnResponse)(json)
-            const results = (body.search_results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const body = yield* Schema.decodeUnknownEffect(MoonshotCnResponse)(json)
+              const results = (body.search_results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
 
-            // A non-empty search is billed per dispatch, so a result that
-            // never enters the cache is a query paid for again on every
-            // repeat. An empty one is free but is cached too: the retry would
-            // cost a round trip for nothing.
-            writeCache(queryKey, results)
-            return results
+              // A non-empty search is billed per dispatch, so a result that
+              // never enters the cache is a query paid for again on every
+              // repeat. An empty one is free but is cached too: the retry would
+              // cost a round trip for nothing.
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

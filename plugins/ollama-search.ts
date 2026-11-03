@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Ollama's hosted search answers with the flattest envelope in this package:
 // `results` carries the hits, each a title, a URL and a `content` that is the
@@ -174,6 +175,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Ollama" show up in /connect with an API-key method.
@@ -236,54 +272,72 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    query: queryKey,
-                    max_results: MAX_RESULTS,
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      query: queryKey,
+                      max_results: MAX_RESULTS,
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Ollama search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Ollama request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              // A bad key answers 401 with `{"error":"Unauthorized"}` (checked
-              // against the live API); the body rides along verbatim, so any
-              // shape Ollama adds later is reported rather than mistranslated.
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Ollama search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Ollama request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("Ollama API error " + response.status + ": " + boundDetail(detail)),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Ollama response: " + String(error)),
-            })
+              if (!response.ok) {
+                // A bad key answers 401 with `{"error":"Unauthorized"}` (checked
+                // against the live API); the body rides along verbatim, so any
+                // shape Ollama adds later is reported rather than mistranslated.
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("Ollama search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const message = "Ollama API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, SEARCH_URL, "POST", message)
+                    : new Error(message),
+                )
+              }
 
-            const body = yield* Schema.decodeUnknownEffect(OllamaResponse)(json)
-            const results = (body.results ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Ollama search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Ollama response: " + String(error)),
+              })
 
-            writeCache(queryKey, results)
-            return results
+              const body = yield* Schema.decodeUnknownEffect(OllamaResponse)(json)
+              const results = (body.results ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

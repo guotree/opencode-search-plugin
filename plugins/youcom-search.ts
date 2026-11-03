@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // You.com returns { results: { web, news }, metadata } with no body-level error
 // envelope: failures are HTTP status codes only. Every result field is
@@ -106,15 +107,19 @@ function parseSearchDate(value: string | undefined): number {
   return ABSOLUTE_DATE.some((shape) => shape.test(text)) ? Date.parse(text) : NaN
 }
 
+function nonBlank(text: string | undefined): string | undefined {
+  return text !== undefined && /\S/.test(text) ? text : undefined
+}
+
 // Web and news live in separate sections; an agent asking "what's new" wants
 // both, so they merge into one list with web first.
 function toResult(item: YouHit) {
   const published = parseSearchDate(item.page_age)
   const extracted =
-    item.contents?.highlights?.join("\n") ??
-    item.contents?.markdown ??
-    item.snippets?.join(" ") ??
-    item.description ??
+    nonBlank(item.contents?.highlights?.join("\n")) ??
+    nonBlank(item.contents?.markdown) ??
+    nonBlank(item.snippets?.join(" ")) ??
+    nonBlank(item.description) ??
     ""
   return {
     url: item.url ?? "",
@@ -222,6 +227,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "You.com" show up in /connect with an API-key method.
@@ -293,54 +333,61 @@ export const effect = (ctx: Plugin.Context) =>
                     }
                   : undefined
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch("https://ydc-index.io/v1/search", {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    "X-API-Key": key,
-                  },
-                  body: JSON.stringify({
-                    query: queryKey,
-                    count: SEARCH_SIZE,
-                    ...(LANGUAGE ? { language: LANGUAGE } : {}),
-                    ...(COUNTRY ? { country: COUNTRY } : {}),
-                    ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
-                    ...(extraction ? { extraction } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch("https://ydc-index.io/v1/search", {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      "X-API-Key": key,
+                    },
+                    body: JSON.stringify({
+                      query: queryKey,
+                      count: SEARCH_SIZE,
+                      ...(LANGUAGE ? { language: LANGUAGE } : {}),
+                      ...(COUNTRY ? { country: COUNTRY } : {}),
+                      ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
+                      ...(extraction ? { extraction } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("You.com search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("You.com request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                catch: (error) =>
+                  ((error instanceof Error && error.name === "TimeoutError") || (signal.aborted && signal.reason?.name === "TimeoutError"))
+                    ? new Error("You.com search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("You.com request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("You.com API error " + response.status + ": " + boundDetail(detail)),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid You.com response: " + String(error)),
-            })
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) => ((error instanceof Error && error.name === "TimeoutError") || (signal.aborted && signal.reason?.name === "TimeoutError"))
+                    ? new Error("You.com search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("response body unavailable"),
+                }).pipe(Effect.catch((error) => response.status === 429
+                  ? Effect.succeed("response body unavailable")
+                  : Effect.fail(error)))
+                const message = "You.com API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(response.status === 429
+                  ? rateLimitError(response, "https://ydc-index.io/v1/search", "POST", message)
+                  : new Error(message))
+              }
 
-            const body = yield* Schema.decodeUnknownEffect(YouResponse)(json)
-            const hits = [...(body.results?.web ?? []), ...(body.results?.news ?? [])]
-            const results = hits.flatMap((item) => (item.url ? [toResult(item)] : []))
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) => ((error instanceof Error && error.name === "TimeoutError") || (signal.aborted && signal.reason?.name === "TimeoutError"))
+                  ? new Error("You.com search timed out after " + SEARCH_TIMEOUT + "ms")
+                  : new Error("Invalid You.com response: " + String(error)),
+              })
 
-            writeCache(queryKey, results)
-            return results
+              const body = yield* Schema.decodeUnknownEffect(YouResponse)(json)
+              const hits = [...(body.results?.web ?? []), ...(body.results?.news ?? [])]
+              const results = hits.flatMap((item) => (item.url ? [toResult(item)] : []))
+
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Kagi returns { meta, data }: data separates results by kind, and only
 // data.search (html pages) is read here -- the news, image, video and other
@@ -216,6 +217,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Kagi" show up in /connect with an API-key method.
@@ -277,58 +313,77 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch("https://kagi.com/api/v1/search", {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    query: queryKey,
-                    workflow: "search",
-                    limit: SEARCH_SIZE,
-                    ...(LENS ? { lens_id: LENS } : {}),
-                    // `lens_id` and an inline `lens` are two lenses at once,
-                    // which the spec does not define: a named lens wins, and
-                    // the recency filter rides along only when none was named.
-                    ...(RECENT && !LENS ? { lens: { time_relative: RECENT } } : {}),
-                    ...(REGION ? { filters: { region: REGION } } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch("https://kagi.com/api/v1/search", {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      query: queryKey,
+                      workflow: "search",
+                      limit: SEARCH_SIZE,
+                      ...(LENS ? { lens_id: LENS } : {}),
+                      // `lens_id` and an inline `lens` are two lenses at once,
+                      // which the spec does not define: a named lens wins, and
+                      // the recency filter rides along only when none was named.
+                      ...(RECENT && !LENS ? { lens: { time_relative: RECENT } } : {}),
+                      ...(REGION ? { filters: { region: REGION } } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Kagi search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Kagi request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  error instanceof Error && error.name === "TimeoutError"
+                    ? new Error("Kagi search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Kagi request failed: " + String(error)),
               })
-              return yield* Effect.fail(
-                new Error("Kagi API error " + response.status + ": " + boundDetail(detail)),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Kagi response: " + String(error)),
-            })
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                      ? new Error("Kagi search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) =>
+                    response.status === 429
+                      ? Effect.succeed("response body unavailable")
+                      : Effect.fail(error),
+                  ),
+                )
+                const message = "Kagi API error " + response.status + ": " + boundDetail(detail)
+                return yield* Effect.fail(
+                  response.status === 429
+                    ? rateLimitError(response, "https://kagi.com/api/v1/search", "POST", message)
+                    : new Error(message),
+                )
+              }
 
-            const body = yield* Schema.decodeUnknownEffect(KagiResponse)(json)
-            const results = (body.data?.search ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.reason instanceof Error && signal.reason.name === "TimeoutError")
+                    ? new Error("Kagi search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Kagi response: " + String(error)),
+              })
 
-            writeCache(queryKey, results)
-            return results
+              const body = yield* Schema.decodeUnknownEffect(KagiResponse)(json)
+              const results = (body.data?.search ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
+
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })

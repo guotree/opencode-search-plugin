@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect, Schema, Stream } from "effect"
+import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // Zhipu answers with `search_result` at the top level, alongside passengers
 // this provider never reads: `id`/`created`/`request_id` name the call and
@@ -273,6 +274,41 @@ function timedSignal(signal: AbortSignal, timeout: number): AbortSignal {
   return timeout > 0 ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal
 }
 
+function withRequestSignal<A, E>(
+  timeout: number,
+  run: (signal: AbortSignal) => Effect.Effect<A, E>,
+): Effect.Effect<A, E> {
+  return Effect.scoped(Effect.gen(function* () {
+    const controller = yield* Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    )
+    return yield* run(timedSignal(controller.signal, timeout))
+  }))
+}
+
+function rateLimitError(
+  response: Response,
+  endpoint: string,
+  method: "GET" | "POST",
+  description: string,
+) {
+  const request = method === "GET"
+    ? HttpClientRequest.get(endpoint)
+    : HttpClientRequest.post(endpoint)
+  const retry = response.headers.get("Retry-After")
+  return new HttpClientError.HttpClientError({
+    reason: new HttpClientError.StatusCodeError({
+      request,
+      response: HttpClientResponse.fromWeb(request, new Response(null, {
+        status: 429,
+        headers: retry === null ? {} : { "Retry-After": retry },
+      })),
+      description,
+    }),
+  })
+}
+
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "Zhipu" show up in /connect with an API-key method.
@@ -335,96 +371,114 @@ export const effect = (ctx: Plugin.Context) =>
               )
             }
 
-            const response = yield* Effect.tryPromise({
-              try: (signal) =>
-                fetch(SEARCH_URL, {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + key,
-                  },
-                  body: JSON.stringify({
-                    // Cut to the spec's 70-character ceiling (`maxLength: 70`)
-                    // before dispatch.
-                    search_query: toSearchQuery(queryKey),
-                    search_engine: ENGINE,
-                    // Intent recognition rewrites a query into a search phrase;
-                    // the agent already writes one, and the spec marks this
-                    // field required with a documented default of `false`.
-                    search_intent: false,
-                    // Omitted where the engine's own docs leave `count` out
-                    // (Quark), and snapped to Sogou's five accepted sizes.
-                    ...(countFor(ENGINE, COUNT) === undefined
-                      ? {}
-                      : { count: countFor(ENGINE, COUNT) }),
-                    // Omitted rather than sent as "noLimit": the two mean the
-                    // same thing, and noLimit is the documented default.
-                    ...(RECENCY ? { search_recency_filter: RECENCY } : {}),
-                    // Snippet length, not price -- `high` sends fuller excerpts
-                    // for the same per-search fee.
-                    ...(CONTENT_SIZE ? { content_size: CONTENT_SIZE } : {}),
+            return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const response = yield* Effect.tryPromise({
+                try: () =>
+                  fetch(SEARCH_URL, {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + key,
+                    },
+                    body: JSON.stringify({
+                      // Cut to the spec's 70-character ceiling (`maxLength: 70`)
+                      // before dispatch.
+                      search_query: toSearchQuery(queryKey),
+                      search_engine: ENGINE,
+                      // Intent recognition rewrites a query into a search phrase;
+                      // the agent already writes one, and the spec marks this
+                      // field required with a documented default of `false`.
+                      search_intent: false,
+                      // Omitted where the engine's own docs leave `count` out
+                      // (Quark), and snapped to Sogou's five accepted sizes.
+                      ...(countFor(ENGINE, COUNT) === undefined
+                        ? {}
+                        : { count: countFor(ENGINE, COUNT) }),
+                      // Omitted rather than sent as "noLimit": the two mean the
+                      // same thing, and noLimit is the documented default.
+                      ...(RECENCY ? { search_recency_filter: RECENCY } : {}),
+                      // Snippet length, not price -- `high` sends fuller excerpts
+                      // for the same per-search fee.
+                      ...(CONTENT_SIZE ? { content_size: CONTENT_SIZE } : {}),
+                    }),
+                    signal,
                   }),
-                  signal: timedSignal(signal, SEARCH_TIMEOUT),
-                }),
-              // A timeout is its own failure: naming it stops the user hunting
-              // for a key problem that was never there.
-              catch: (error) =>
-                error instanceof Error && error.name === "TimeoutError"
-                  ? new Error("Zhipu search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Zhipu request failed: " + String(error)),
-            })
-
-            if (!response.ok) {
-              const detail = yield* Effect.tryPromise({
-                try: () => response.text(),
-                catch: () => new Error("response body unavailable"),
+                // A timeout is its own failure: naming it stops the user hunting
+                // for a key problem that was never there.
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Zhipu search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Zhipu request failed: " + String(error)),
               })
-              const described = boundDetail(describeFailure(String(detail)))
 
-              // The two below carry a fix the user can act on -- a bare status
-              // code would send them hunting for an auth problem that was
-              // really a cap, or the other way round.
-              if (response.status === 401) {
+              if (!response.ok) {
+                const detail = yield* Effect.tryPromise({
+                  try: () => response.text(),
+                  catch: (error) =>
+                    (error instanceof Error && error.name === "TimeoutError") ||
+                    (signal.aborted && signal.reason?.name === "TimeoutError")
+                      ? new Error("Zhipu search timed out after " + SEARCH_TIMEOUT + "ms")
+                      : new Error("response body unavailable"),
+                }).pipe(
+                  Effect.catch((error) => response.status === 429
+                    ? Effect.succeed("response body unavailable")
+                    : Effect.fail(error)),
+                )
+                const described = boundDetail(describeFailure(String(detail)))
+
+                // The two below carry a fix the user can act on -- a bare status
+                // code would send them hunting for an auth problem that was
+                // really a cap, or the other way round.
+                if (response.status === 401) {
+                  return yield* Effect.fail(
+                    new Error(
+                      "Zhipu rejected the API key (HTTP 401): " +
+                        described +
+                        ". Connect Zhipu Search in /connect or set OSP_ZHIPU_API_KEY to a key from https://bigmodel.cn/usercenter/proj-mgmt/apikeys. A key issued on z.ai belongs to Z.ai Search (osp-zai) instead",
+                    ),
+                  )
+                }
+                if (response.status === 429) {
+                  const retry = response.headers.get("Retry-After")
+                  return yield* Effect.fail(
+                    rateLimitError(
+                      response,
+                      SEARCH_URL,
+                      "POST",
+                      "Zhipu rate limited the request (HTTP 429)" +
+                        retryHint(retry) +
+                        ": " +
+                        described +
+                        ". Concurrent searches are capped per account (the API's code 1701); retry shortly or run fewer searches at once",
+                    ),
+                  )
+                }
                 return yield* Effect.fail(
-                  new Error(
-                    "Zhipu rejected the API key (HTTP 401): " +
-                      described +
-                      ". Connect Zhipu Search in /connect or set OSP_ZHIPU_API_KEY to a key from https://bigmodel.cn/usercenter/proj-mgmt/apikeys. A key issued on z.ai belongs to Z.ai Search (osp-zai) instead",
-                  ),
+                  new Error("Zhipu API error " + response.status + ": " + described),
                 )
               }
-              if (response.status === 429) {
-                const retry = response.headers.get("Retry-After")
-                return yield* Effect.fail(
-                  new Error(
-                    "Zhipu rate limited the request (HTTP 429)" +
-                      retryHint(retry) +
-                      ": " +
-                      described +
-                      ". Concurrent searches are capped per account (the API's code 1701); retry shortly or run fewer searches at once",
-                  ),
-                )
-              }
-              return yield* Effect.fail(
-                new Error("Zhipu API error " + response.status + ": " + described),
-              )
-            }
 
-            const json = yield* Effect.tryPromise({
-              try: () => response.json(),
-              catch: (error) => new Error("Invalid Zhipu response: " + String(error)),
-            })
+              const json = yield* Effect.tryPromise({
+                try: () => response.json(),
+                catch: (error) =>
+                  (error instanceof Error && error.name === "TimeoutError") ||
+                  (signal.aborted && signal.reason?.name === "TimeoutError")
+                    ? new Error("Zhipu search timed out after " + SEARCH_TIMEOUT + "ms")
+                    : new Error("Invalid Zhipu response: " + String(error)),
+              })
 
-            const body = yield* Schema.decodeUnknownEffect(ZhipuResponse)(json)
-            const results = (body.search_result ?? [])
-              .map(toResult)
-              .filter((result): result is SearchResult => result !== undefined)
+              const body = yield* Schema.decodeUnknownEffect(ZhipuResponse)(json)
+              const results = (body.search_result ?? [])
+                .map(toResult)
+                .filter((result): result is SearchResult => result !== undefined)
 
-            // Zhipu charges per dispatch, so a result that never enters the
-            // cache is a query paid for again on every repeat.
-            writeCache(queryKey, results)
-            return results
+              // Zhipu charges per dispatch, so a result that never enters the
+              // cache is a query paid for again on every repeat.
+              writeCache(queryKey, results)
+              return results
+            }))
           }),
       })
     })
