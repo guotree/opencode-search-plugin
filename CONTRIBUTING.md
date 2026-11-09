@@ -5,7 +5,7 @@
 Each provider is **one self-contained `.ts` file**, living in `plugins/`:
 
 ```text
-index.ts          package entrypoint; composes the twenty-two providers
+index.ts          package entrypoint; composes the twenty-four providers
 plugins/          the providers, each one independently copyable
 test/             contract tests, harness, and structure guards
 scripts/          manual sync into a local OpenCode config
@@ -30,16 +30,18 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 
 | Block | Carried by | Why it is duplicated |
 | --- | --- | --- |
-| `envInt` / `envStr` | all twenty-two | Environment knobs read once at load time; `envInt` takes whole numbers only, so a fractional value falls back to the default instead of reaching the wire |
-| `EMPTY_RESULT_TTL` / cache Map / `cacheKey` / `readCache` / `writeCache` | all twenty-two | Repeat queries are billed dispatches; a hit refreshes recency, an empty result pins briefly |
-| `boundDetail` | all twenty-two | A WAF/CDN error page can run tens of kilobytes; the detail is cut at 300 code points before it reaches the tool result |
-| `retryHint` | bocha, doubao, keenable, stepfun, yuanbao, zai, zhipu | `Retry-After` is delay-seconds or an HTTP-date; only the seconds form earns its "s" |
-| `timedSignal` | all twenty-two | The host applies no deadline around `execute` |
-| `withRequestSignal` | all twenty-two | Allocate a scoped controller only after cache and credential checks; abort fetch and body reading together, and release unconsumed bodies on every exit |
-| `rateLimitError` | all twenty-two | Preserve the host's typed HTTP 429 contract using a static credential-free endpoint, actual request method, an empty synthetic response, and only standard `Retry-After` |
-| `parseSearchDate` and its tables | bocha, brave, deepseek, doubao, kagi, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, yuanbao, zai, zhipu | Relative and absolute date shapes, plus the `Date.parse` trap; Yuanbao accepts only explicitly zoned timestamps until its wall-clock timezone is confirmed |
-| `soften` | all twenty-two | The host types the credential API's failure channel as `unknown` |
+| `envInt` / `envStr` | all twenty-four | Environment knobs read once at load time; `envInt` takes whole numbers only, so a fractional value falls back to the default instead of reaching the wire |
+| `EMPTY_RESULT_TTL` / cache Map / `cacheKey` / `readCache` / `writeCache` | all twenty-four | Repeat queries are billed dispatches; a hit refreshes recency, an empty result pins briefly |
+| `boundDetail` | all twenty-four | A WAF/CDN error page can run tens of kilobytes; the detail is cut at 300 code points before it reaches the tool result |
+| `retryHint` | bocha, doubao, keenable, stepfun, yuanbao, zai, zai-coding, zhipu, zhipu-coding | `Retry-After` is delay-seconds or an HTTP-date; only the seconds form earns its "s" |
+| `timedSignal` | all twenty-four | The host applies no deadline around `execute` |
+| `withRequestSignal` | all twenty-four | Allocate a scoped controller only after cache and credential checks; abort fetch and body reading together, and release unconsumed bodies on every exit |
+| `rateLimitError` | all twenty-four | Preserve the host's typed HTTP 429 contract using a static credential-free endpoint, actual request method, an empty synthetic response, and only standard `Retry-After` |
+| `parseSearchDate` and its tables | bocha, brave, deepseek, doubao, kagi, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, yuanbao, zai, zai-coding, zhipu, zhipu-coding | Relative and absolute date shapes, plus the `Date.parse` trap; Yuanbao accepts only explicitly zoned timestamps until its wall-clock timezone is confirmed |
+| `trimContent` | doubao, jina, linkup, moonshot, moonshot-cn, ollama, stepfun, zai-coding, zhipu-coding | Cut each hit's content to a `*_CONTENT_CHARS` budget before caching; counted in code points so no surrogate pair is split |
+| `soften` | all twenty-four | The host types the credential API's failure channel as `unknown` |
 | the `Effect.forkScoped` rebind subscription | all except anysearch, keenable | A rotated or deleted key must rebind the provider without a restart; the two keyless files bind at startup and never rebind. One failed rebind is warned about and retried by the next event -- the subscription itself must survive a host-side defect |
+| the marker-delimited Streamable HTTP MCP session client | zai-coding-search, zhipu-coding-search | One initialized session per cache miss, JSON/SSE framing, schema-driven arguments and best-effort cleanup. The block is compared byte-for-byte between the two files because no shared module may be imported |
 
 Files with no date field (anysearch, jina, linkup, ollama) must not carry `parseSearchDate`. The structure test asserts that too.
 
@@ -105,10 +107,12 @@ For live checks, have the test process inherit credentials or pass them internal
 | `test/yuanbao-search.test.ts` | Yuanbao's lite-compatible defaults, optional filters, environment fallback and key rotation, cancellation and response-body deadlines, JSON-string pages, malformed-row isolation, explicit-zone dates, HTTP 200 business errors, typed throttles and uncached policy refusals |
 | `test/request-lifecycle.test.ts` | Every provider's header/body deadlines, cancellation with no deadline, typed and uncached 429 errors, standard Retry-After, credential-free error metadata, damaged throttle bodies, and non-throttle status boundaries |
 | `test/zai-search.test.ts` | Z.ai's request body, the fixed `search-prime` engine, hit filtering, and the 401/429 reports |
+| `test/zai-coding-search.test.ts` | The international Coding Plan MCP endpoint, schema-driven knobs, camelCase tool/SSE compatibility, and the 401/429 reports |
 | `test/zhipu-search.test.ts` | Zhipu's request body per engine, the 70-character query cut, hit filtering, and the 401/429 reports |
+| `test/zhipu-coding-search.test.ts` | The cn Coding Plan MCP lifecycle, session headers and cleanup, schema-driven filters, result decoding, cache isolation, and refusal reporting |
 | `test/dates.test.ts` | The shared date parser, exercised through Brave |
 | `test/index.test.ts` | Aggregate registration and the `enable`/`disable` options |
-| `test/index-fault.test.ts` | The aggregate loop's fault isolation: a provider that dies or throws while registering is named on stderr while the other twenty-one register, and an interruption still propagates |
+| `test/index-fault.test.ts` | The aggregate loop's fault isolation: a provider that dies or throws while registering is named on stderr while the other twenty-three register, and an interruption still propagates |
 | `test/structure.test.ts` | The self-containment and shared-copy guards |
 | `test/harness.ts` | The fake plugin context, credential sequences, fetch recorder |
 

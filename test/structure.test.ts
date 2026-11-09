@@ -44,7 +44,8 @@ const RETRY_HINT_BLOCK = `function retryHint(retry: string | null): string {
 
 const WITH_RETRY_HINT = [
   "bocha-search", "doubao-search", "keenable-search",
-  "stepfun-search", "yuanbao-search", "zai-search", "zhipu-search",
+  "stepfun-search", "yuanbao-search", "zai-search", "zai-coding-search",
+  "zhipu-search", "zhipu-coding-search",
 ]
 
 const CACHE_BLOCK = `const EMPTY_RESULT_TTL = 30_000
@@ -150,7 +151,7 @@ const CONTENT_CHARS_BLOCK = `function trimContent(text: string): string {
 }`
 
 /**
- * The credential-rebind subscription. Nineteen files carry it; the two
+ * The credential-rebind subscription. Twenty-two files carry it; the two
  * keyless providers (anysearch, keenable) bind at startup and have no
  * credential to rebind, so they must not subscribe at all.
  */
@@ -209,7 +210,6 @@ const EVENT_BLOCK = `    yield* Effect.forkScoped(
     )`
 
 /** Files that carry a date field and must therefore share the date parser. */
-/** Files that carry a date field and must therefore share the date parser. */
 const WITH_DATES = [
   "bocha-search",
   "brave-search",
@@ -228,7 +228,9 @@ const WITH_DATES = [
   "youcom-search",
   "yuanbao-search",
   "zai-search",
+  "zai-coding-search",
   "zhipu-search",
+  "zhipu-coding-search",
 ]
 
 /**
@@ -263,7 +265,9 @@ const WITH_TIMEOUT = [
   "youcom-search",
   "yuanbao-search",
   "zai-search",
+  "zai-coding-search",
   "zhipu-search",
+  "zhipu-coding-search",
 ]
 
 /**
@@ -281,6 +285,8 @@ const WITH_CONTENT_CHARS = [
   "moonshot-search",
   "ollama-search",
   "stepfun-search",
+  "zai-coding-search",
+  "zhipu-coding-search",
 ]
 
 /**
@@ -289,6 +295,14 @@ const WITH_CONTENT_CHARS = [
  * subscription. Mirrors `KEYLESS` in providers.test.ts.
  */
 const KEYLESS = ["anysearch-search", "keenable-search"]
+
+/**
+ * Providers that carry the Streamable HTTP MCP client block. The block is
+ * copied verbatim for the same reason every other shared block is: each file
+ * must remain usable after being copied out of the repository on its own. The
+ * delimiters let the test compare the block without repeating it here.
+ */
+const WITH_MCP = ["zai-coding-search", "zhipu-coding-search"]
 
 describe("repository structure", () => {
   it("exposes every provider as a standalone file with no cross-file imports", () => {
@@ -383,7 +397,7 @@ describe("repository structure", () => {
 
     // The rebind subscription binds every credentialed provider: the two
     // keyless files have no credential, so they carry no subscription and
-    // the other nineteen must carry this exact block.
+    // the other twenty-two must carry this exact block.
     for (const { file } of PROVIDER_CASES) {
       const source = providerSource(file)
       if (KEYLESS.includes(file)) {
@@ -399,6 +413,14 @@ describe("repository structure", () => {
     for (const { file } of PROVIDER_CASES.filter((c) => !WITH_DATES.includes(c.file))) {
       expect(providerSource(file), `${file} has no date field`).not.toContain("parseSearchDate")
     }
+  })
+
+  it("keeps the shared MCP session client byte-identical across Coding Plan providers", () => {
+    const blocks = WITH_MCP.map((file) => mcpBlock(providerSource(file)))
+    for (const [index, block] of blocks.entries()) {
+      expect(block, `${WITH_MCP[index]} must carry the delimited MCP block`).not.toBe("")
+    }
+    expect(blocks[0]).toBe(blocks[1])
   })
 
   it("wires every provider into the aggregate entrypoint", () => {
@@ -418,6 +440,15 @@ describe("repository structure", () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 })
+
+/** Extract the marker-delimited MCP block, or "" when a file lost a marker. */
+function mcpBlock(source: string): string {
+  const begin = "// === BEGIN SHARED MCP SESSION CLIENT ==="
+  const end = "// === END SHARED MCP SESSION CLIENT ==="
+  const start = source.indexOf(begin)
+  const stop = source.indexOf(end)
+  return start < 0 || stop < start ? "" : source.slice(start, stop + end.length)
+}
 
 /** `anysearch-search` -> `anysearch`, `moonshot-cn-search` -> `moonshotcn`. */
 function safeName(file: string): string {

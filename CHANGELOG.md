@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-11-09
+
+### Added
+
+- Zhipu Coding Plan (`osp-zhipu-coding`, `plugins/zhipu-coding-search.ts`) and
+  Z.ai Coding Plan (`osp-zai-coding`, `plugins/zai-coding-search.ts`) through
+  their Remote MCP search endpoints (`web_search_prime`). One result-cache miss
+  performs `initialize`, `notifications/initialized`, `tools/list`, `tools/call`
+  and a best-effort `DELETE` under one deadline; JSON and SSE replies, protocol
+  negotiation, schema-driven `count`/recency/domain/content-size fields, and
+  `web_search_prime` / `webSearchPrime` tool discovery are supported. Coding
+  Plan keys are separate from Standard API keys, are never exchanged between
+  sites, and never fall back to the metered REST providers. The result cache is
+  isolated by a key fingerprint and every request-shaping knob. Official plan
+  documentation currently describes 1.2 shared credits per Web Search MCP call;
+  both providers are experimental pending confirmation that this client falls
+  within the plan's usage policy, and have not been exercised with a live
+  Coding Plan key or billing account.
+
 ## [4.6.1] - 2026-11-03
 
 ### Fixed
@@ -760,7 +779,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.1...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.7.0...HEAD
+[4.7.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.1...v4.7.0
 [4.6.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.0...v4.6.1
 [4.6.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.5.0...v4.6.0
 [4.5.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.4.1...v4.5.0

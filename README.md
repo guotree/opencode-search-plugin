@@ -33,14 +33,14 @@ On your first search, OpenCode prompts you to select a search provider. Set `web
 
 `"random"` selects an available provider and keeps using it within the session. A rate limit recognized by the host can move the session to another provider. Pinning an ID such as `"osp-brave"` keeps that provider selected even when a request fails; `false` disables web search.
 
-All twenty-two adapters preserve OpenCode's typed HTTP 429 contract and the standard `Retry-After` header. An ordinary error containing "429" is insufficient. Yuanbao also converts its documented `RequestLimitExceeded` business error; other error statuses are not reclassified as throttles. The host owns switching and cooldowns: within one WebSearch service instance, sessions share provider cooldowns, and a missing or invalid `Retry-After` defaults to 60 seconds in OpenCode 2.2.5. Random failover and cooldown exclusion were exercised with simulated Brave and Zhipu responses in an isolated 2.2.5 host; Yuanbao was verified separately with simulated responses.
+All twenty-four adapters preserve OpenCode's typed HTTP 429 contract and the standard `Retry-After` header. An ordinary error containing "429" is insufficient. Yuanbao also converts its documented `RequestLimitExceeded` business error; other error statuses are not reclassified as throttles. The host owns switching and cooldowns: within one WebSearch service instance, sessions share provider cooldowns, and a missing or invalid `Retry-After` defaults to 60 seconds in OpenCode 2.2.5. Random failover and cooldown exclusion were exercised with simulated Brave and Zhipu responses in an isolated 2.2.5 host; Yuanbao was verified separately with simulated responses.
 
 <!-- TODO: replace this comment with a 10-second GIF:
      set websearch.provider -> ask a question -> provider responds with sources -->
 
 ## Supported providers
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Yuanbao](https://cloud.tencent.com/document/product/1806) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Yuanbao](https://cloud.tencent.com/document/product/1806) · [Z.ai](https://z.ai/) · [Z.ai Coding Plan](https://docs.z.ai/devpack/mcp/search-mcp-server) · [Zhipu](https://bigmodel.cn/) · [Zhipu Coding Plan](https://docs.bigmodel.cn/cn/coding-plan/mcp/search-mcp-server)
 
 ## Why this exists
 
@@ -212,7 +212,9 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | no | Combined web and news results; multiple extraction modes |
 | Yuanbao | `osp-yuanbao` | `OSP_YUANBAO_API_KEY` | no | Tencent Cloud WSA; lite / standard / flagship at ¥14 / ¥20 / ¥26 per 1,000 calls; account tier selected in the console; lite verified live, other tiers pending; site and time filters |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | no | Zhipu's international site (api.z.ai); standalone search endpoint, billed per search at $0.01 (Search-Prime); separate account system from Zhipu's cn site |
+| Z.ai Coding Plan | `osp-zai-coding` | `OSP_ZAI_CODING_API_KEY` | no | Z.ai's Coding Plan Remote MCP search (`web_search_prime`); consumes plan shared credits (1.2 credits per call at implementation time), never falls back to the metered REST endpoint; experimental pending client-policy confirmation |
 | Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | no | Zhipu's cn site (open.bigmodel.cn); standalone search endpoint, no model call; billed per search from ¥0.01 (Search-Std), no free tier; four engines including Sogou and Quark |
+| Zhipu Coding Plan | `osp-zhipu-coding` | `OSP_ZHIPU_CODING_API_KEY` | no | Zhipu's Coding Plan Remote MCP search (`web_search_prime`); consumes plan shared credits (1.2 credits per call at implementation time), never falls back to the metered REST endpoint; experimental pending client-policy confirmation |
 
 ## Configuration
 
@@ -469,6 +471,24 @@ Search-Prime ($0.01/search) is the only engine the international site's spec doc
 
 Z.ai is Zhipu's international site with its own account system: keys come from [z.ai](https://z.ai/manage-apikey/apikey-list) and are not interchangeable with the cn site's. A cn key used here answers HTTP 401, which the error message names.
 
+### Z.ai Coding Plan
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ZAI_CODING_COUNT` | `10` | Results per search, clamped to 1–50. Sent as `count` only when the server's current `inputSchema` advertises it; otherwise results are capped locally |
+| `ZAI_CODING_RECENCY` | — | Time filter: `oneDay`, `oneWeek`, `oneMonth`, `oneYear`, or `noLimit`; unset and `noLimit` omit the field |
+| `ZAI_CODING_DOMAIN_FILTER` | — | One domain to include. Sent only when the current schema advertises `search_domain_filter`; otherwise the search fails before `tools/call` rather than silently dropping the filter |
+| `ZAI_CODING_CONTENT_SIZE` | — | `medium` or `high`. Sent only when the current schema advertises `content_size` |
+| `ZAI_CODING_CONTENT_CHARS` | `4000` | Code points kept from the beginning of each hit's `content` (`0` disables truncation) |
+| `ZAI_CODING_TIMEOUT` | `25000` | Deadline in milliseconds for the whole MCP lifecycle (`initialize` through `tools/call`); session cleanup has a separate one-second budget |
+| `OSP_ZAI_CODING_API_KEY` | — | Coding Plan key from [z.ai](https://z.ai/manage-apikey/apikey-list). Standard API keys and cn-site Coding Plan keys do not authenticate here |
+
+This is a separate access path from Z.ai's metered REST search (`osp-zai`), not a mode switch: a Coding Plan key and a Standard API key are different credentials, and a Coding Plan call consumes the plan's shared credits rather than the REST `$0.01/use` price. There is no anonymous tier, and a failed MCP call never falls back to the billed REST endpoint.
+
+One result-cache miss performs one Streamable HTTP session at `https://api.z.ai/api/mcp/web_search_prime/mcp`: `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, then a best-effort `DELETE`. The client negotiates the MCP protocol version, accepts JSON and SSE replies, prefers `web_search_prime`, and accepts the documented `webSearchPrime` spelling. `count`, recency, domain and content-size fields are sent only when the current tool schema advertises them; the plugin checks property presence, not every JSON Schema constraint. Requests reject redirects and keep the key in the `Authorization` header. Refusal bodies are consumed but never included in errors, so reflected keys and session IDs cannot reach the agent. A repeated query is served from the local cache; the cache identity includes the key fingerprint and every request-shaping knob, so rotating a key cannot return the previous key's results.
+
+The official plan documentation currently describes each Web Search MCP call as using 1.2 shared credits. This provider is marked experimental because the plan's usage policy does not list this plugin as an officially supported client; no live Coding Plan key or billing account has been used to verify the integration.
+
 ### Zhipu
 
 | Variable | Default | Description |
@@ -481,6 +501,24 @@ Z.ai is Zhipu's international site with its own account system: keys come from [
 The default `search_std` is the cheapest engine; `search_pro` costs three times as much for higher recall, and the Sogou / Quark engines trade a higher price for their own source pools (Sogou covers the Tencent ecosystem and Zhihu; Quark skews recent). Every dispatch is billed -- there is no free tier -- so repeat queries ride the shared cache. Queries are cut to the API's 70-character `search_query` ceiling before dispatch, `count` is omitted on `search_pro_quark` (whose spec row leaves the field out), and on `search_pro_sogou` it is snapped to the nearest of 10/20/30/40/50.
 
 Zhipu here is the cn site ([open.bigmodel.cn](https://open.bigmodel.cn)), with keys from [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys). The international site (api.z.ai) is a separate account system and registers as its own provider, Z.ai (`osp-zai`) above.
+
+### Zhipu Coding Plan
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ZHIPU_CODING_COUNT` | `10` | Results per search, clamped to 1–50. Sent as `count` only when the server's current `inputSchema` advertises it; otherwise results are capped locally |
+| `ZHIPU_CODING_RECENCY` | — | Time filter: `oneDay`, `oneWeek`, `oneMonth`, `oneYear`, or `noLimit`; unset and `noLimit` omit the field |
+| `ZHIPU_CODING_DOMAIN_FILTER` | — | One domain to include. Sent only when the current schema advertises `search_domain_filter`; otherwise the search fails before `tools/call` rather than silently dropping the filter |
+| `ZHIPU_CODING_CONTENT_SIZE` | — | `medium` or `high`. Sent only when the current schema advertises `content_size` |
+| `ZHIPU_CODING_CONTENT_CHARS` | `4000` | Code points kept from the beginning of each hit's `content` (`0` disables truncation) |
+| `ZHIPU_CODING_TIMEOUT` | `25000` | Deadline in milliseconds for the whole MCP lifecycle (`initialize` through `tools/call`); session cleanup has a separate one-second budget |
+| `OSP_ZHIPU_CODING_API_KEY` | — | Coding Plan key from [bigmodel.cn](https://bigmodel.cn/apikey/coding-plan-per). Standard API keys and international Coding Plan keys do not authenticate here |
+
+This is a separate access path from Zhipu's metered REST search (`osp-zhipu`), not a mode switch: a Coding Plan key and a Standard API key are different credentials, and a Coding Plan call consumes the plan's shared credits rather than the REST per-search price. There is no anonymous tier, and a failed MCP call never falls back to the billed REST endpoint.
+
+One result-cache miss performs one Streamable HTTP session at `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp`: `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, then a best-effort `DELETE`. The client negotiates the MCP protocol version, accepts JSON and SSE replies, prefers `web_search_prime`, and accepts the documented `webSearchPrime` spelling. `count`, recency, domain and content-size fields are sent only when the current tool schema advertises them; the plugin checks property presence, not every JSON Schema constraint. Requests reject redirects and keep the key in the `Authorization` header. Refusal bodies are consumed but never included in errors, so reflected keys and session IDs cannot reach the agent. A repeated query is served from the local cache; the cache identity includes the key fingerprint and every request-shaping knob, so rotating a key cannot return the previous key's results.
+
+The official plan documentation currently describes each Web Search MCP call as using 1.2 shared credits. This provider is marked experimental because the plan's usage policy does not list this plugin as an officially supported client; no live Coding Plan key or billing account has been used to verify the integration.
 
 ## How a query flows
 
@@ -514,6 +552,8 @@ Common issues to check:
 - **Search fails with `Bocha balance is exhausted (HTTP 403)`**: The account balance is exhausted; recharge at [open.bocha.cn](https://open.bocha.cn). The error message includes Bocha's response message and a `log_id` for contacting support.
 - **Search fails with `Bocha rate limited the request (HTTP 429)`**: Bocha's per-account request limit scales with total recharge amount. When returned by Bocha, a `retry after Ns` hint is included in the error message.
 - **Search fails with `Zhipu rejected the API key (HTTP 401)`**: The key most likely belongs to Zhipu's other site. The cn site ([open.bigmodel.cn](https://open.bigmodel.cn), provider `osp-zhipu`) and the international site ([api.z.ai](https://api.z.ai), provider `osp-zai`) are separate account systems whose keys are not interchangeable. Use the provider whose site issued the key -- `osp-zhipu` for bigmodel.cn keys, `osp-zai` for z.ai keys -- or get a cn key from [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys).
+- **Search fails with `Zhipu Coding Plan rejected the Coding Plan key (HTTP 401)` (or `Z.ai Coding Plan rejected...`)**: The key is either a Standard API key (which cannot authenticate against Coding Plan Remote MCP endpoints) or belongs to the other site. Use a key from [bigmodel.cn/apikey/coding-plan-per](https://bigmodel.cn/apikey/coding-plan-per) for `osp-zhipu-coding` or from [z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list) for `osp-zai-coding`. Standard API keys belong to `osp-zhipu` or `osp-zai` instead.
+- **Search fails with `Zhipu Coding Plan refused the request (HTTP 403)` (or `Z.ai Coding Plan refused...`)**: The key is not associated with an active Coding Plan subscription, or the upstream platform does not authorize this client under the plan's usage policy.
 - **Search fails with `Zhipu rate limited the request (HTTP 429)`**: Concurrent searches are capped per account, reported by the API as code 1701. Zhipu attaches a `retry after Ns` hint when it has one; waiting it out or running fewer searches at once clears the refusal.
 - **Search fails with `Moonshot rejected the API key (HTTP 401)` (or `Moonshot CN rejected...`)**: The key most likely belongs to Moonshot's other site. The international site ([platform.kimi.ai](https://platform.kimi.ai), provider `osp-moonshot`) and the cn site ([platform.kimi.com](https://platform.kimi.com), provider `osp-moonshot-cn`) issue keys from separate consoles. Use the provider whose site issued the key -- `osp-moonshot` for platform.kimi.ai keys, `osp-moonshot-cn` for platform.kimi.com keys -- or get a key from the console of the site you meant to search.
 - **Search fails with `Moonshot rate limited the search (HTTP 429)` (or `Moonshot CN rate limited...`)**: The search QPS cap is tiered by the account's cumulative recharge (1 QPS at Tier0, rising to 50). The error message includes a `retry in Ns` hint when the `X-RateLimit-Reset` header is present; waiting it out or running fewer searches at once clears the refusal.

@@ -249,6 +249,92 @@ export function stubFetch(
   return { calls }
 }
 
+/**
+ * A minimal Streamable HTTP MCP server for fixtures. One search is one
+ * initialize, notification, tools/list, tools/call, and DELETE; `transport`
+ * selects JSON or SSE framing for the JSON-RPC replies. Dedicated provider
+ * tests use the hooks below a `ProviderCase` entry needs.
+ */
+export interface McpFixture {
+  readonly protocolVersion?: string
+  readonly sessionID?: string
+  readonly toolName?: string
+  readonly inputSchema?: unknown
+  readonly callResult?: unknown
+  readonly transport?: "json" | "sse"
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+function rpcResponse(
+  transport: McpFixture["transport"],
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
+  if (transport === "sse") {
+    return new Response("event: message\ndata: " + JSON.stringify(body) + "\n\n", {
+      status,
+      headers: { "Content-Type": "text/event-stream", ...headers },
+    })
+  }
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...headers },
+  })
+}
+
+export function stubMcpFetch(
+  fixture: McpFixture = {},
+  onCall?: (call: RecordedCall) => void,
+): { calls: RecordedCall[] } {
+  const sessionID = fixture.sessionID ?? "mcp-session"
+  const toolName = fixture.toolName ?? "web_search_prime"
+  const inputSchema = fixture.inputSchema ?? {
+    type: "object",
+    properties: { search_query: { type: "string" }, count: { type: "integer" } },
+  }
+  const callResult = fixture.callResult ?? {
+    content: [{ type: "text", text: "[]" }],
+  }
+  return stubFetch((call) => {
+    if (call.init?.method === "DELETE") return new Response(null, { status: 204 })
+    const body = isRecord(call.body) ? call.body : {}
+    if (body.method === "initialize") {
+      return rpcResponse(
+        fixture.transport,
+        {
+          jsonrpc: "2.0",
+          id: body.id,
+          result: { protocolVersion: fixture.protocolVersion ?? "2024-11-05" },
+        },
+        200,
+        { "Mcp-Session-Id": sessionID },
+      )
+    }
+    if (body.method === "notifications/initialized") {
+      return new Response(null, { status: 202 })
+    }
+    if (body.method === "tools/list") {
+      return rpcResponse(fixture.transport, {
+        jsonrpc: "2.0",
+        id: body.id,
+        result: { tools: [{ name: toolName, inputSchema }] },
+      })
+    }
+    if (body.method === "tools/call") {
+      onCall?.(call)
+      return rpcResponse(fixture.transport, {
+        jsonrpc: "2.0",
+        id: body.id,
+        result: callResult,
+      })
+    }
+    throw new Error("unexpected MCP request")
+  })
+}
+
 export function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -274,8 +360,10 @@ export interface ProviderCase {
   displayName: string
   /** Environment variable registered as the integration's key method. */
   envKey: string
-  /** A response body that decodes to `expected`. */
+  /** A response body that decodes to `expected`. Unused by MCP cases. */
   response: unknown
+  /** MCP session fixture; present only for the Coding Plan providers. */
+  mcp?: McpFixture
   /** The results `execute` must produce for that response. */
   expected: ExpectedResult[]
 }

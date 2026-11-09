@@ -567,6 +567,48 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     ],
   },
   {
+    file: "zai-coding-search",
+    pluginID: "zai-coding-search",
+    providerID: "osp-zai-coding",
+    displayName: "Z.ai Coding Plan",
+    envKey: "OSP_ZAI_CODING_API_KEY",
+    // A Streamable HTTP MCP session rather than one REST response. The fixture
+    // deliberately uses the server's documented camelCase spelling so the
+    // `web_search_prime` preference and its compatibility fallback are both
+    // exercised; `test/zai-coding-search.test.ts` covers the rest of the
+    // lifecycle, and the shared block is byte-compared in structure.test.ts.
+    response: null,
+    mcp: {
+      toolName: "webSearchPrime",
+      inputSchema: {
+        type: "object",
+        properties: {
+          search_query: { type: "string" },
+          count: { type: "integer" },
+        },
+      },
+      callResult: {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            search_result: [{
+              title: "Z.ai Coding hit",
+              link: "https://example.com/zai-coding",
+              content: "Z.ai Coding snippet",
+            }],
+          }),
+        }],
+      },
+    },
+    expected: [
+      {
+        url: "https://example.com/zai-coding",
+        title: "Z.ai Coding hit",
+        content: "Z.ai Coding snippet",
+      },
+    ],
+  },
+  {
     file: "zhipu-search",
     pluginID: "zhipu-search",
     providerID: "osp-zhipu",
@@ -597,6 +639,43 @@ export const PROVIDER_CASES: readonly ProviderCase[] = [
     },
     expected: [
       { url: "https://example.com/zhipu", title: "Zhipu hit", content: "Zhipu snippet" },
+    ],
+  },
+  {
+    file: "zhipu-coding-search",
+    pluginID: "zhipu-coding-search",
+    providerID: "osp-zhipu-coding",
+    displayName: "Zhipu Coding Plan",
+    envKey: "OSP_ZHIPU_CODING_API_KEY",
+    response: null,
+    mcp: {
+      toolName: "web_search_prime",
+      inputSchema: {
+        type: "object",
+        properties: {
+          search_query: { type: "string" },
+          count: { type: "integer" },
+        },
+      },
+      callResult: {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            search_result: [{
+              title: "Zhipu Coding hit",
+              link: "https://example.com/zhipu-coding",
+              content: "Zhipu Coding snippet",
+            }],
+          }),
+        }],
+      },
+    },
+    expected: [
+      {
+        url: "https://example.com/zhipu-coding",
+        title: "Zhipu Coding hit",
+        content: "Zhipu Coding snippet",
+      },
     ],
   },
 ]

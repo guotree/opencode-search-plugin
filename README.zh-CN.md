@@ -33,14 +33,14 @@ opencode plugin add opencode-search-plugin
 
 `"random"` 选择一个可用 provider，并在当前会话中保持使用；宿主识别到限流后可切换至其他 provider。填写具体 ID（如 `"osp-brave"`）会固定该 provider，即使请求失败也不自动切换；设为 `false` 则禁用联网搜索。
 
-全部 22 个适配器都保留 OpenCode 约定的 HTTP 429 错误类型及标准 `Retry-After` 响应头，普通错误消息中出现“429”不足以触发切换。元宝另将官方定义的业务码 `RequestLimitExceeded` 转为限流错误；其他错误状态不重新分类为限流。切换和冷却由宿主管理：同一个 WebSearch 服务实例中的会话共享 provider 冷却状态，OpenCode 2.2.5 在 `Retry-After` 缺失或无效时默认冷却 60 秒。已在隔离的 2.2.5 宿主中使用模拟 Brave、智谱响应验证随机切换和冷却排除；元宝此前已单独使用模拟响应验证。
+全部 24 个适配器都保留 OpenCode 约定的 HTTP 429 错误类型及标准 `Retry-After` 响应头，普通错误消息中出现“429”不足以触发切换。元宝另将官方定义的业务码 `RequestLimitExceeded` 转为限流错误；其他错误状态不重新分类为限流。切换和冷却由宿主管理：同一个 WebSearch 服务实例中的会话共享 provider 冷却状态，OpenCode 2.2.5 在 `Retry-After` 缺失或无效时默认冷却 60 秒。已在隔离的 2.2.5 宿主中使用模拟 Brave、智谱响应验证随机切换和冷却排除；元宝此前已单独使用模拟响应验证。
 
 <!-- TODO: 录一段 10 秒 GIF：
      配置 websearch.provider -> 提问 -> provider 正常应答带引用 -->
 
 ## 支持的 Provider
 
-[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Yuanbao](https://cloud.tencent.com/document/product/1806) · [Z.ai](https://z.ai/) · [Zhipu](https://bigmodel.cn/)
+[AnySearch](https://www.anysearch.com/) · [Bocha](https://bocha.ai/) · [Brave Search](https://brave.com/search/api/) · [DeepSeek](https://api-docs.deepseek.com/guides/search/) · [Doubao](https://www.volcengine.com/product/SearchInfinity) · [Jina](https://jina.ai/) · [Kagi](https://kagi.com/) · [Keenable](https://keenable.ai/) · [Linkup](https://www.linkup.so/) · [Metaso](https://metaso.cn/) · [Moonshot](https://platform.kimi.ai/) · [Moonshot CN](https://platform.kimi.com/) · [Ollama](https://ollama.com/) · [Perplexity](https://www.perplexity.ai/) · [Querit](https://querit.ai/) · [SerpApi](https://serpapi.com/) · [Serper](https://serper.dev/) · [StepFun](https://platform.stepfun.com/) · [You.com](https://you.com/) · [Yuanbao](https://cloud.tencent.com/document/product/1806) · [Z.ai](https://z.ai/) · [Z.ai Coding Plan](https://docs.z.ai/devpack/mcp/search-mcp-server) · [Zhipu](https://bigmodel.cn/) · [Zhipu Coding Plan](https://docs.bigmodel.cn/cn/coding-plan/mcp/search-mcp-server)
 
 ## 为什么做这个插件
 
@@ -212,7 +212,9 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 否 | 网页与新闻结果合并；提供多种正文抽取模式 |
 | Yuanbao | `osp-yuanbao` | `OSP_YUANBAO_API_KEY` | 否 | 腾讯云元宝搜索 WSA；极速 / 标准 / 旗舰版每千次 14 / 20 / 26 元，档位在控制台选择；极速版已实测，其他档位待验证；支持站点和时间过滤 |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | 否 | 智谱国际站（api.z.ai）；独立搜索接口，按次计费，每次 0.01 美元（Search-Prime）；与国内站为相互独立的账号体系 |
+| Z.ai Coding Plan | `osp-zai-coding` | `OSP_ZAI_CODING_API_KEY` | 否 | Z.ai Coding Plan 的 Remote MCP 搜索（`web_search_prime`）；消耗套餐共享积分（实现时官方系数为每次 1.2 credits），绝不回退到计费 REST 接口；客户端条款待确认，标记为实验性 |
 | Zhipu | `osp-zhipu` | `OSP_ZHIPU_API_KEY` | 否 | 智谱国内站（open.bigmodel.cn）；独立搜索接口，不经过模型调用；按次计费，Search-Std 每次 0.01 元起，无免费额度；四款引擎（含搜狗、夸克） |
+| Zhipu Coding Plan | `osp-zhipu-coding` | `OSP_ZHIPU_CODING_API_KEY` | 否 | 智谱 Coding Plan 的 Remote MCP 搜索（`web_search_prime`）；消耗套餐共享积分（实现时官方系数为每次 1.2 credits），绝不回退到计费 REST 接口；客户端条款待确认，标记为实验性 |
 
 ## 配置
 
@@ -469,6 +471,24 @@ HTTP 200 内的业务错误及已知的 `hit black query` 拦截均明确报错�
 
 Z.ai 是智谱的国际站，拥有独立的账号体系：密钥从 [z.ai](https://z.ai/manage-apikey/apikey-list) 获取，与国内站不通用。将国内站密钥用于此 provider 会返回 HTTP 401，错误信息中会指明这一点。
 
+### Z.ai Coding Plan
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `ZAI_CODING_COUNT` | `10` | 每次搜索的结果数，限制在 1–50。仅当服务端当前 `inputSchema` 声明了 `count` 时才发送，否则在本地截取 |
+| `ZAI_CODING_RECENCY` | — | 时间筛选：`oneDay`、`oneWeek`、`oneMonth`、`oneYear` 或 `noLimit`；不设置或设为 `noLimit` 时不发送该字段 |
+| `ZAI_CODING_DOMAIN_FILTER` | — | 限定单个域名。仅当当前 schema 声明了 `search_domain_filter` 时才发送；否则在 `tools/call` 前明确报错，而不是静默丢弃过滤条件 |
+| `ZAI_CODING_CONTENT_SIZE` | — | `medium` 或 `high`。仅当当前 schema 声明了 `content_size` 时发送 |
+| `ZAI_CODING_CONTENT_CHARS` | `4000` | 每条结果的 `content` 从开头保留的码点数（`0` 表示不截断） |
+| `ZAI_CODING_TIMEOUT` | `25000` | 覆盖整个 MCP 生命周期（`initialize` 到 `tools/call`）的超时毫秒数；会话清理单独使用 1 秒预算 |
+| `OSP_ZAI_CODING_API_KEY` | — | 从 [z.ai](https://z.ai/manage-apikey/apikey-list) 获取的 Coding Plan key。标准 API key 与国内站 Coding Plan key 在此均无法通过认证 |
+
+这是与 Z.ai 计费 REST 搜索（`osp-zai`）相互独立的接入路径，而不是模式开关：Coding Plan key 与标准 API key 是两类凭据，Coding Plan 调用消耗套餐共享积分，而不是 REST 的每次 0.01 美元。没有匿名层级，MCP 调用失败也不会回退到计费 REST 接口。
+
+每次结果缓存未命中都会在 `https://api.z.ai/api/mcp/web_search_prime/mcp` 建立一个 Streamable HTTP 会话：`initialize`、`notifications/initialized`、`tools/list`、`tools/call`，最后尽力发送 `DELETE`。客户端会协商 MCP 协议版本，支持 JSON 与 SSE 响应，优先选择 `web_search_prime`，并兼容官方文档展示的 `webSearchPrime` 拼写。`count`、时效、域名与摘要长度字段仅在当前工具 schema 声明时发送；插件只检查属性是否存在，不执行完整的 JSON Schema 约束校验。请求拒绝重定向，密钥只放在 `Authorization` 头中。拒绝响应的正文会被消费但不会写入错误信息，避免被反射的密钥或会话 ID 进入 agent 上下文。重复查询走本地缓存；缓存身份包含 key 指纹和所有影响请求的配置项，因此轮换 key 不会返回上一把 key 的结果。
+
+官方套餐文档目前说明每次 Web Search MCP 调用消耗 1.2 个共享 credits。由于套餐使用政策尚未将本插件列为官方支持的客户端，此 provider 标记为实验性；尚未使用真实 Coding Plan key 或账单账户验证该接入。
+
 ### Zhipu
 
 | 变量 | 默认值 | 说明 |
@@ -481,6 +501,24 @@ Z.ai 是智谱的国际站，拥有独立的账号体系：密钥从 [z.ai](http
 默认引擎 `search_std` 是价格最低的一档；`search_pro` 价格为其三倍，召回更高；搜狗 / 夸克引擎则以更高单价换取各自的信源池（搜狗覆盖腾讯生态与知乎内容，夸克偏重时效）。每次调用均计费——没有免费额度——因此重复查询由共享缓存承接。请求发出前会截断至 API `search_query` 的 70 字符上限；`count` 在 `search_pro_quark` 引擎上不发送（其文档未列出该字段），在 `search_pro_sogou` 上则取整到 10/20/30/40/50 之一。
 
 此处的 Zhipu 指国内站（[open.bigmodel.cn](https://open.bigmodel.cn)），密钥从 [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取。国际站（api.z.ai）为相互独立的账号体系，以独立 provider 形式注册，即上表的 Z.ai（`osp-zai`）。
+
+### Zhipu Coding Plan
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `ZHIPU_CODING_COUNT` | `10` | 每次搜索的结果数，限制在 1–50。仅当服务端当前 `inputSchema` 声明了 `count` 时才发送，否则在本地截取 |
+| `ZHIPU_CODING_RECENCY` | — | 时间筛选：`oneDay`、`oneWeek`、`oneMonth`、`oneYear` 或 `noLimit`；不设置或设为 `noLimit` 时不发送该字段 |
+| `ZHIPU_CODING_DOMAIN_FILTER` | — | 限定单个域名。仅当当前 schema 声明了 `search_domain_filter` 时才发送；否则在 `tools/call` 前明确报错，而不是静默丢弃过滤条件 |
+| `ZHIPU_CODING_CONTENT_SIZE` | — | `medium` 或 `high`。仅当当前 schema 声明了 `content_size` 时发送 |
+| `ZHIPU_CODING_CONTENT_CHARS` | `4000` | 每条结果的 `content` 从开头保留的码点数（`0` 表示不截断） |
+| `ZHIPU_CODING_TIMEOUT` | `25000` | 覆盖整个 MCP 生命周期（`initialize` 到 `tools/call`）的超时毫秒数；会话清理单独使用 1 秒预算 |
+| `OSP_ZHIPU_CODING_API_KEY` | — | 从 [bigmodel.cn](https://bigmodel.cn/apikey/coding-plan-per) 获取的 Coding Plan key。标准 API key 与国际站 Coding Plan key 在此均无法通过认证 |
+
+这是与智谱计费 REST 搜索（`osp-zhipu`）相互独立的接入路径，而不是模式开关：Coding Plan key 与标准 API key 是两类凭据，Coding Plan 调用消耗套餐共享积分，而不是 REST 的按次价格。没有匿名层级，MCP 调用失败也不会回退到计费 REST 接口。
+
+每次结果缓存未命中都会在 `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` 建立一个 Streamable HTTP 会话：`initialize`、`notifications/initialized`、`tools/list`、`tools/call`，最后尽力发送 `DELETE`。客户端会协商 MCP 协议版本，支持 JSON 与 SSE 响应，优先选择 `web_search_prime`，并兼容官方文档展示的 `webSearchPrime` 拼写。`count`、时效、域名与摘要长度字段仅在当前工具 schema 声明时发送；插件只检查属性是否存在，不执行完整的 JSON Schema 约束校验。请求拒绝重定向，密钥只放在 `Authorization` 头中。拒绝响应的正文会被消费但不会写入错误信息，避免被反射的密钥或会话 ID 进入 agent 上下文。重复查询走本地缓存；缓存身份包含 key 指纹和所有影响请求的配置项，因此轮换 key 不会返回上一把 key 的结果。
+
+官方套餐文档目前说明每次 Web Search MCP 调用消耗 1.2 个共享 credits。由于套餐使用政策尚未将本插件列为官方支持的客户端，此 provider 标记为实验性；尚未使用真实 Coding Plan key 或账单账户验证该接入。
 
 ## 查询处理流程
 
@@ -514,6 +552,8 @@ opencode api get "/api/websearch/provider"
 - **搜索报错 `Bocha balance is exhausted (HTTP 403)`**：账户余额已耗尽，可前往 [open.bocha.cn](https://open.bocha.cn) 充值。错误信息包含博查返回的 `message` 文本与 `log_id`，联系客服时可作为凭证。
 - **搜索报错 `Bocha rate limited the request (HTTP 429)`**：博查单账户请求上限与累计充值金额相关。若博查返回了 `Retry-After` 响应头，错误信息中会包含 `retry after Ns` 提示。
 - **搜索报错 `Zhipu rejected the API key (HTTP 401)`**：key 很可能来自智谱的另一个站点。国内站（[open.bigmodel.cn](https://open.bigmodel.cn)，provider `osp-zhipu`）与国际站（[api.z.ai](https://api.z.ai)，provider `osp-zai`）是相互独立的账号体系，密钥不通用。请使用签发 key 所属站点对应的 provider——bigmodel.cn 的 key 用 `osp-zhipu`，z.ai 的 key 用 `osp-zai`——或前往 [bigmodel.cn](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取国内站密钥。
+- **搜索报错 `Zhipu Coding Plan rejected the Coding Plan key (HTTP 401)`（或 `Z.ai Coding Plan rejected...`）**：密钥是标准 API key（无法通过 Coding Plan 远程 MCP 认证），或属于另一个站点。请从 [bigmodel.cn/apikey/coding-plan-per](https://bigmodel.cn/apikey/coding-plan-per) 获取 `osp-zhipu-coding` 密钥，或从 [z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list) 获取 `osp-zai-coding` 密钥；标准 API key 应分别配置在 `osp-zhipu` 或 `osp-zai`。
+- **搜索报错 `Zhipu Coding Plan refused the request (HTTP 403)`（或 `Z.ai Coding Plan refused...`）**：该密钥未绑定有效的 Coding Plan 套餐，或者上游平台的使用政策未授权此客户端。
 - **搜索报错 `Zhipu rate limited the request (HTTP 429)`**：智谱按账户限制并发搜索数，对应 API 错误码 1701。若错误信息中附带 `retry after Ns` 提示，等待该时间或减少并发搜索即可恢复。
 - **搜索报错 `Moonshot rejected the API key (HTTP 401)`（或 `Moonshot CN rejected...`）**：key 很可能来自月之暗面的另一个站点。国际站（[platform.kimi.ai](https://platform.kimi.ai)，provider `osp-moonshot`）与国内站（[platform.kimi.com](https://platform.kimi.com)，provider `osp-moonshot-cn`）在各自控制台签发密钥。请使用签发 key 所属站点对应的 provider——platform.kimi.ai 的 key 用 `osp-moonshot`，platform.kimi.com 的 key 用 `osp-moonshot-cn`——或前往目标站点的控制台获取密钥。
 - **搜索报错 `Moonshot rate limited the search (HTTP 429)`（或 `Moonshot CN rate limited...`）**：搜索接口的 QPS 按账户累计充值分档（Tier0 为 1 QPS，最高 50）。若错误信息附带 `retry in Ns` 提示（来自 `X-RateLimit-Reset` 响应头），等待该时间或减少并发搜索即可恢复。

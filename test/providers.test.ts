@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { Plugin } from "@opencode/plugin/effect"
 import type { Effect, Scope } from "effect"
-import { jsonResponse, loadPlugin, makeHarness, stubFetch } from "./harness"
+import { jsonResponse, loadPlugin, makeHarness, stubFetch, stubMcpFetch } from "./harness"
 import { PROVIDER_CASES } from "./cases"
+import type { ProviderCase } from "./harness"
 
 /**
  * Every module in this repository has the same shape: a default export naming
@@ -27,6 +28,19 @@ afterEach(() => {
  */
 /** Providers with an anonymous tier, which never gate on a key. */
 const KEYLESS = new Set(["osp-anysearch", "osp-keenable"])
+
+/**
+ * An MCP search spends four JSON-RPC requests plus a DELETE on a cache miss.
+ * Counting `tools/call` instead of every request keeps the one-dispatch-per-
+ * query contract identical for REST and session-based providers.
+ */
+function dispatches(calls: Array<{ body: unknown }>, spec: ProviderCase): number {
+  if (!spec.mcp) return calls.length
+  return calls.filter((call) => {
+    const body = call.body as { method?: unknown } | undefined
+    return body?.method === "tools/call"
+  }).length
+}
 
 describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
   const modulePath = `../plugins/${spec.file}`
@@ -72,13 +86,15 @@ describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
     const harness = makeHarness({ credentialSequence: [CREDENTIAL] })
     await harness.run(mod.effect(harness.ctx))
 
-    const fetch = stubFetch(() => jsonResponse(spec.response))
+    const fetch = spec.mcp
+      ? stubMcpFetch(spec.mcp)
+      : stubFetch(() => jsonResponse(spec.response))
     const results = (await harness.run(
       harness.providers[0]!.execute({ query: "a query" }),
     )) as Array<{ url: string; title: string; content: string; time: unknown }>
 
     expect(results).toEqual(spec.expected.map((r) => ({ ...r, time: {} })))
-    expect(fetch.calls).toHaveLength(1)
+    expect(dispatches(fetch.calls, spec)).toBe(1)
   })
 
   it("serves a repeated query from the cache", async () => {
@@ -86,11 +102,13 @@ describe.each(PROVIDER_CASES)("$providerID ($file)", (spec) => {
     const harness = makeHarness({ credentialSequence: [CREDENTIAL] })
     await harness.run(mod.effect(harness.ctx))
 
-    const fetch = stubFetch(() => jsonResponse(spec.response))
+    const fetch = spec.mcp
+      ? stubMcpFetch(spec.mcp)
+      : stubFetch(() => jsonResponse(spec.response))
     const provider = harness.providers[0]!
     await harness.run(provider.execute({ query: "same query" }))
     await harness.run(provider.execute({ query: "  same   query " }))
-    expect(fetch.calls).toHaveLength(1)
+    expect(dispatches(fetch.calls, spec)).toBe(1)
   })
 
   it("reports the HTTP status when the API refuses the request", async () => {

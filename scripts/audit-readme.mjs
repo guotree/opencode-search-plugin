@@ -51,8 +51,10 @@ for (const f of pluginFiles) {
 // Section name -> file: strip non-alphanumerics and compare
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
 const fileFor = (section) => {
-  const n = norm(section)
-  // Section names may carry the product suffix ("Brave Search") or not ("Jina").
+  // Section names may carry the product suffix ("Brave Search") or not
+  // ("Jina"). The Coding Plan providers keep "Plan" in the prose heading while
+  // their file is named after the access path (`zai-coding-search.ts`).
+  const n = norm(section).replace(/plan$/, "")
   return pluginFiles.find((f) => {
     const base = norm(f.replace(/\.ts$/, "").replace(/-search$/, ""))
     return base === n || base + "search" === n
