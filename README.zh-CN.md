@@ -10,7 +10,7 @@
 
 **无需 API key，开箱即用的 OpenCode 网页搜索插件。**
 
-AnySearch 和 Keenable 支持免配置直接使用。其余 provider 仅在配置对应 API key 后才会激活，避免产生意外账单。
+AnySearch、Keenable 与 You.com 支持免配置直接使用。其余 provider 仅在配置对应 API key 后才会激活，避免产生意外账单。
 
 OpenCode 的 `random` 模式在适配器报告宿主可识别的限流错误时，可改用其他可用 provider 重试（参见[服务选择说明](#跳过-provider-选择提示)）。需要 key 的 provider 仅在配置凭据后进入候选池。
 
@@ -48,7 +48,7 @@ OpenCode v2 内置了部分搜索服务：`exa`、`firecrawl`、`parallel`、`ta
 
 本插件将这些搜索服务接入 OpenCode：
 
-- AnySearch 和 Keenable 无需 API key 或注册账号即可直接使用。
+- AnySearch、Keenable 与 You.com 无需 API key 或注册账号即可直接使用。
 - 多家服务提供免费额度，便于搭建低成本的备用搜索池。
 - 扩充 OpenCode 的 `random` 模式候选池；适配器按宿主约定报告限流时，可回退到其他服务。
 
@@ -120,7 +120,7 @@ opencode plugin add github:guotree/opencode-search-plugin
 }
 ```
 
-- `disable`：Provider ID 黑名单（参见下表）。由于 AnySearch 和 Keenable 无需 key 即可使用，`disable` 是将其移出搜索池的唯一方式。
+- `disable`：Provider ID 黑名单（参见下表）。由于 AnySearch、Keenable 与 You.com 无需 key 即可使用，`disable` 是将其移出搜索池的唯一方式。
 - `enable`：Provider ID 白名单。仅注册指定的 ID，例如 `"enable": ["osp-brave", "osp-jina"]` 仅激活这两项。
 
 若同时配置两者，**重叠项以 `disable` 为准**：
@@ -168,7 +168,7 @@ opencode plugin remove github:guotree/opencode-search-plugin
 
 ## 密钥
 
-除 AnySearch 和 Keenable 外，其余 provider 均需要 API key。可通过以下两种方式之一提供凭据：
+除 AnySearch、Keenable 与 You.com 外，其余 provider 均需要 API key。可通过以下两种方式之一提供凭据：
 
 - **OpenCode 内的 `/connect`**：按 provider 存储，支持无需重启即时轮换，且不受环境变量变动影响。
 - **环境变量**：作为兜底读取，适用于无界面、自动化或 CI 环境。
@@ -179,7 +179,7 @@ opencode plugin remove github:guotree/opencode-search-plugin
 
 环境变量凭据来自正在运行的 OpenCode 服务进程。修改 Windows 用户级或系统级环境变量不会更新已有进程；需确保服务进程继承了新环境，或通过 `/connect` 即时更新凭据。配置了 key 只代表 provider 可以进入搜索池，密钥有效性和服务开通状态仍由上游校验。
 
-AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注册，仅在配置 key 时附带认证凭据头。对于 Keenable，两种层级使用独立额度：配置 key 每月享有 100,000 次免费请求；免 key 请求改走 `/public` 端点，受速率限制（单个 IP 每小时 1,000 次、每秒 10 次，且与同一出口 IP 的其他用户共享）。配置 API key 可消除对共享 IP 限流的依赖。
+AnySearch、Keenable 与 You.com 是例外情况。三者均包含匿名层级并默认注册，仅在配置 key 时附带认证凭据头。对于 Keenable，两种层级使用独立额度：配置 key 每月享有 100,000 次免费请求；免 key 请求改走 `/public` 端点，受速率限制（单个 IP 每小时 1,000 次、每秒 10 次，且与同一出口 IP 的其他用户共享）。对于 You.com，免 key 请求改走官方托管型 MCP 免密服务（`https://api.you.com/mcp?profile=free`），无需注册即可享受每日免费评估额度；配置 `OSP_YDC_API_KEY` 则使用专属商业 REST 接口（`https://ydc-index.io/v1/search`）以获得独立配额与更高并发。配置 API key 可消除对共享 IP 限流的依赖。
 
 配置好密钥后，由 `websearch.provider` 控制路由方式：`"random"` 按会话选择一个可用 provider（参见[跳过 provider 选择提示](#跳过-provider-选择提示)）；填写具体 ID（如 `"osp-brave"`）则固定使用该 provider；设为 `false` 则完全关闭网页搜索。
 
@@ -209,7 +209,7 @@ AnySearch 和 Keenable 是例外情况。两者均包含匿名层级并默认注
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | 否 | 经 SerpApi 调用 Google；包含 SerpApi 自带的免费 1 小时服务端缓存 |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | 否 | 经 Serper 调用 Google；按查询消耗积分计费 |
 | StepFun | `osp-stepfun` | `OSP_STEPFUN_API_KEY` | 否 | 阶跃星辰国内站（api.stepfun.com）；独立搜索接口，每次 0.04 元；四种场景偏好（`programming`、`research`、`gov`、`business`）；不支持时间、域名与分页过滤，且每条结果都附带整页正文 |
-| You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 否 | 网页与新闻结果合并；提供多种正文抽取模式 |
+| You.com | `osp-youcom` | `OSP_YDC_API_KEY` | 是 | 网页与新闻结果合并；提供多种正文抽取模式；支持 Hosted MCP 免密免费层 |
 | Yuanbao | `osp-yuanbao` | `OSP_YUANBAO_API_KEY` | 否 | 腾讯云元宝搜索 WSA；极速 / 标准 / 旗舰版每千次 14 / 20 / 26 元，档位在控制台选择；极速版已实测，其他档位待验证；支持站点和时间过滤 |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | 否 | 智谱国际站（api.z.ai）；独立搜索接口，按次计费，每次 0.01 美元（Search-Prime）；与国内站为相互独立的账号体系 |
 | Z.ai Coding Plan | `osp-zai-coding` | `OSP_ZAI_CODING_API_KEY` | 否 | Z.ai Coding Plan 的 Remote MCP 搜索（`web_search_prime`）；消耗套餐共享积分（实现时官方系数为每次 1.2 credits），绝不回退到计费 REST 接口；客户端条款待确认，标记为实验性 |
@@ -540,7 +540,7 @@ opencode plugin list
 
 # 查看当前搜索池中包含的 provider
 # 若某 provider 未出现在列表中，说明其未配置 key，或被 enable/disable 规则排除
-# AnySearch 和 Keenable 无需 key，始终处于列表中
+# AnySearch、Keenable 与 You.com 无需 key，始终处于列表中
 opencode api get "/api/websearch/provider"
 ```
 

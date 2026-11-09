@@ -10,7 +10,7 @@
 
 **Web search for OpenCode that works out of the box, no API key required.**
 
-AnySearch and Keenable work immediately without any configuration. Other providers activate only when an API key is configured, ensuring you are not billed for unused services.
+AnySearch, Keenable, and You.com work immediately without any configuration. Other providers activate only when an API key is configured, ensuring you are not billed for unused services.
 
 OpenCode's `random` mode can retry another available provider when an adapter reports a recognized rate limit (see [provider selection](#skip-the-provider-prompt)). Providers that require a key stay out of the pool until one is configured.
 
@@ -48,7 +48,7 @@ OpenCode v2 ships with several built-in search providers: `exa`, `firecrawl`, `p
 
 This plugin integrates those providers into OpenCode:
 
-- AnySearch and Keenable work immediately without an API key or account.
+- AnySearch, Keenable, and You.com work immediately without an API key or account.
 - Multiple providers offer free tiers, making it practical to maintain a low-cost backup pool.
 - Expands OpenCode's `random` mode pool, with failover available when the adapter reports a limit in the form the host recognizes.
 
@@ -120,7 +120,7 @@ Installing the package registers all providers, but providers without configured
 }
 ```
 
-- `disable`: Deny-list of provider IDs (from the table below). Because AnySearch and Keenable require no key, `disable` is the only way to remove them from the pool.
+- `disable`: Deny-list of provider IDs (from the table below). Because AnySearch, Keenable, and You.com require no key, `disable` is the only way to remove them from the pool.
 - `enable`: Allow-list of provider IDs. Only the listed IDs are registered. For example, `"enable": ["osp-brave", "osp-jina"]` activates only those two.
 
 If both are specified, **`disable` takes precedence on any overlap**:
@@ -168,7 +168,7 @@ Pass the same specifier used during installation. This command updates global co
 
 ## Keys
 
-Every provider except AnySearch and Keenable requires an API key. You can provide credentials in one of two ways:
+Every provider except AnySearch, Keenable, and You.com requires an API key. You can provide credentials in one of two ways:
 
 - **`/connect` in OpenCode**: Stored per provider, rotatable without restarting OpenCode, and unaffected by environment changes.
 - **Environment variables**: Read as a fallback for headless, automated, or CI environments.
@@ -179,7 +179,7 @@ A provider that requires a key remains unbound while no key is configured, so `"
 
 Environment keys come from the running OpenCode server process. Changing a Windows user or system environment variable does not update a process that is already running. Ensure the server inherits the updated environment, or use `/connect` to update credentials immediately. Configuring a key makes a provider available; the upstream service still checks that the key is valid and the service is enabled.
 
-AnySearch and Keenable are exceptions. Both include an anonymous tier and are registered by default, attaching credentials only when a key is provided. For Keenable, the two tiers use separate quotas: configuring a key provides 100,000 free requests per month, whereas keyless requests route to the `/public` endpoint and are rate-limited to 1,000 requests/hour and 10 requests/second per IP (shared across all users on that egress address). Configuring an API key removes dependence on that shared IP rate limit.
+AnySearch, Keenable, and You.com are exceptions. All three include an anonymous tier and are registered by default, attaching credentials only when a key is provided. For Keenable, the two tiers use separate quotas: configuring a key provides 100,000 free requests per month, whereas keyless requests route to the `/public` endpoint and are rate-limited to 1,000 requests/hour and 10 requests/second per IP (shared across all users on that egress address). For You.com, keyless requests route to the official hosted MCP free profile (`https://api.you.com/mcp?profile=free`), which provides daily evaluation searches without registration; configuring `OSP_YDC_API_KEY` routes to the commercial REST endpoint (`https://ydc-index.io/v1/search`) with dedicated quota and higher throughput. Configuring an API key removes dependence on that shared IP rate limit.
 
 With keys configured, `websearch.provider` controls routing: `"random"` chooses an available provider per session (see [Skip the provider prompt](#skip-the-provider-prompt)), a specific ID such as `"osp-brave"` pins that provider, and `false` disables web search entirely.
 
@@ -209,7 +209,7 @@ In OpenCode's `/connect` settings, each provider is labeled with an `(osp)` suff
 | SerpApi | `osp-serpapi` | `OSP_SERPAPI_API_KEY` | no | Google via SerpApi; includes SerpApi's free 1-hour server-side cache |
 | Serper | `osp-serper` | `OSP_SERPER_API_KEY` | no | Google via Serper; billed per query in credits |
 | StepFun | `osp-stepfun` | `OSP_STEPFUN_API_KEY` | no | StepFun's cn platform (api.stepfun.com); standalone search endpoint, billed ¥0.04 per search; four scenario biases (`programming`, `research`, `gov`, `business`); no time, domain or paging filters, and every hit carries its full page body |
-| You.com | `osp-youcom` | `OSP_YDC_API_KEY` | no | Combined web and news results; multiple extraction modes |
+| You.com | `osp-youcom` | `OSP_YDC_API_KEY` | yes | Combined web and news results; multiple extraction modes; keyless free tier via hosted MCP |
 | Yuanbao | `osp-yuanbao` | `OSP_YUANBAO_API_KEY` | no | Tencent Cloud WSA; lite / standard / flagship at ¥14 / ¥20 / ¥26 per 1,000 calls; account tier selected in the console; lite verified live, other tiers pending; site and time filters |
 | Z.ai | `osp-zai` | `OSP_ZAI_API_KEY` | no | Zhipu's international site (api.z.ai); standalone search endpoint, billed per search at $0.01 (Search-Prime); separate account system from Zhipu's cn site |
 | Z.ai Coding Plan | `osp-zai-coding` | `OSP_ZAI_CODING_API_KEY` | no | Z.ai's Coding Plan Remote MCP search (`web_search_prime`); consumes plan shared credits (1.2 credits per call at implementation time), never falls back to the metered REST endpoint; experimental pending client-policy confirmation |
@@ -540,7 +540,7 @@ opencode plugin list
 
 # List providers currently active in the search pool
 # A provider omitted here either lacks an API key or was excluded by enable/disable
-# AnySearch and Keenable are always included since neither requires a key
+# AnySearch, Keenable, and You.com are always included since none require a key
 opencode api get "/api/websearch/provider"
 ```
 

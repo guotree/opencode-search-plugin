@@ -151,8 +151,8 @@ const CONTENT_CHARS_BLOCK = `function trimContent(text: string): string {
 }`
 
 /**
- * The credential-rebind subscription. Twenty-two files carry it; the two
- * keyless providers (anysearch, keenable) bind at startup and have no
+ * The credential-rebind subscription. Twenty-one files carry it; the three
+ * keyless providers (anysearch, keenable, youcom) bind at startup and have no
  * credential to rebind, so they must not subscribe at all.
  */
 const EVENT_BLOCK = `    yield* Effect.forkScoped(
@@ -294,7 +294,7 @@ const WITH_CONTENT_CHARS = [
  * there is no credential to change, so these files carry no event
  * subscription. Mirrors `KEYLESS` in providers.test.ts.
  */
-const KEYLESS = ["anysearch-search", "keenable-search"]
+const KEYLESS = ["anysearch-search", "keenable-search", "youcom-search"]
 
 /**
  * Providers that carry the Streamable HTTP MCP client block. The block is
@@ -395,9 +395,9 @@ describe("repository structure", () => {
       )
     }
 
-    // The rebind subscription binds every credentialed provider: the two
+    // The rebind subscription binds every credentialed provider: the three
     // keyless files have no credential, so they carry no subscription and
-    // the other twenty-two must carry this exact block.
+    // the other twenty-one must carry this exact block.
     for (const { file } of PROVIDER_CASES) {
       const source = providerSource(file)
       if (KEYLESS.includes(file)) {

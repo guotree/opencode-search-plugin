@@ -167,6 +167,10 @@ describe("index", () => {
     )
     const harness = makeHarness()
     await harness.run(mod.default.effect(harness.ctx))
-    expect(harness.providers.map((p) => p.id)).toEqual(["osp-anysearch", "osp-keenable"])
+    expect(harness.providers.map((p) => p.id)).toEqual([
+      "osp-anysearch",
+      "osp-keenable",
+      "osp-youcom",
+    ])
   })
 })

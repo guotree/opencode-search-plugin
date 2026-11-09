@@ -1,3 +1,4 @@
+import { HttpClientError } from "effect/http"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse, loadPlugin, makeHarness, stubFetch } from "./harness"
 
@@ -10,6 +11,14 @@ const NO_KEY: Record<string, string> = { OSP_YDC_API_KEY: "" }
 async function bind(env: Record<string, string> = {}) {
   const mod = await loadPlugin<YouCom>("../plugins/youcom-search", { ...NO_KEY, ...env })
   const harness = makeHarness({ credentialSequence: [{ type: "key", key: "youcom-key" }] })
+  await harness.run(mod.effect(harness.ctx))
+  return { mod, harness }
+}
+
+/** Bound without any credentials (keyless free tier). */
+async function bindKeyless(env: Record<string, string> = {}) {
+  const mod = await loadPlugin<YouCom>("../plugins/youcom-search", { ...NO_KEY, ...env })
+  const harness = makeHarness()
   await harness.run(mod.effect(harness.ctx))
   return { mod, harness }
 }
@@ -207,5 +216,203 @@ describe("youcom-search", () => {
     )) as HitResult[]
 
     expect(results[0]!.content).toBe(expected)
+  })
+
+  it("binds without a credential and calls the hosted MCP free endpoint", async () => {
+    const { mod, harness } = await bindKeyless()
+    expect(harness.providers.map((p) => p.id)).toEqual(["osp-youcom"])
+    expect(harness.integrationNames.get("osp-youcom")).toBe("You.com (osp)")
+    expect(harness.envMethods).toEqual([
+      { integrationID: "osp-youcom", names: ["OSP_YDC_API_KEY"] },
+    ])
+    expect(mod.default.id).toBe("youcom-search")
+
+    const fetch = stubFetch(() => jsonResponse(EMPTY))
+    await harness.run(harness.providers[0]!.execute({ query: "  hello   world  " }))
+
+    const { url, init } = fetch.calls[0]!
+    expect(url.href).toBe("https://api.you.com/mcp?profile=free")
+    expect(init?.method).toBe("POST")
+    expect(init?.headers).toMatchObject({
+      Accept: "application/json, text/event-stream",
+      "Content-Type": "application/json",
+    })
+    expect(init?.headers).not.toHaveProperty("X-API-Key")
+    expect(fetch.calls[0]!.body).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "you-search",
+        arguments: {
+          query: "hello world",
+          count: 10,
+          extraction: "highlights",
+        },
+      },
+    })
+  })
+
+  it("parses SSE event-stream payload from the hosted MCP free endpoint", async () => {
+    const { harness } = await bindKeyless()
+    const ssePayload = [
+      "event: message",
+      'data: {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","data":"Search successful"}}',
+      "",
+      "event: message",
+      'data: {"result":{"content":[{"type":"text","text":"{\\"results\\":{\\"web\\":[{\\"url\\":\\"https://example.com/free\\",\\"title\\":\\"Free hit\\",\\"description\\":\\"Free snippet\\"}]}}"}]}}',
+      "",
+    ].join("\n")
+
+    stubFetch(() => new Response(ssePayload, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }))
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    expect(results).toEqual([
+      {
+        url: "https://example.com/free",
+        title: "Free hit",
+        content: "Free snippet",
+        time: {},
+      },
+    ])
+  })
+
+  it("passes language and country to _meta overrides in keyless mode", async () => {
+    const { harness } = await bindKeyless({
+      YOUCOM_LANGUAGE: "ZH-HANS",
+      YOUCOM_COUNTRY: "CN",
+    })
+    const fetch = stubFetch(() => jsonResponse(EMPTY))
+
+    await harness.run(harness.providers[0]!.execute({ query: "q" }))
+
+    expect(fetch.calls[0]!.body).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "you-search",
+        arguments: {
+          query: "q",
+          count: 10,
+          extraction: "highlights",
+        },
+        _meta: {
+          "com.you.com/search": {
+            language: "ZH-HANS",
+            country: "CN",
+          },
+        },
+      },
+    })
+  })
+
+  it("parses multi-line SSE event data chunks", async () => {
+    const { harness } = await bindKeyless()
+    const ssePayload = [
+      "event: message",
+      "data: {",
+      'data:   "result": {',
+      'data:     "content": [{"type": "text", "text": "{\\"results\\":{\\"web\\":[{\\"url\\":\\"https://example.com/multi\\",\\"title\\":\\"Multi line\\",\\"description\\":\\"Parsed\\"}]}}"}]',
+      "data:   }",
+      "data: }",
+      "",
+    ].join("\n")
+
+    stubFetch(() => new Response(ssePayload, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }))
+
+    const results = (await harness.run(
+      harness.providers[0]!.execute({ query: "q" }),
+    )) as HitResult[]
+
+    expect(results).toEqual([
+      {
+        url: "https://example.com/multi",
+        title: "Multi line",
+        content: "Parsed",
+        time: {},
+      },
+    ])
+  })
+
+  it("handles upstream JSON-RPC errors from MCP", async () => {
+    const { harness } = await bindKeyless()
+    const ssePayload = [
+      "event: message",
+      'data: {"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}',
+      "",
+    ].join("\n")
+
+    stubFetch(() => new Response(ssePayload, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }))
+
+    await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
+      "You.com MCP error: Method not found",
+    )
+  })
+
+  it("handles upstream tool errors with isError: true", async () => {
+    const { harness } = await bindKeyless()
+    const ssePayload = [
+      "event: message",
+      'data: {"result":{"content":[{"type":"text","text":"Rate limit exceeded for free profile"}],"isError":true}}',
+      "",
+    ].join("\n")
+
+    stubFetch(() => new Response(ssePayload, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }))
+
+    await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
+      /You\.com MCP error: Rate limit exceeded.*The keyless free tier is rate limited/,
+    )
+  })
+
+  it("surfaces upstream error notification when no result is returned", async () => {
+    const { harness } = await bindKeyless()
+    const ssePayload = [
+      "event: message",
+      'data: {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"error","data":"Search failed upstream"}}',
+      "",
+    ].join("\n")
+
+    stubFetch(() => new Response(ssePayload, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }))
+
+    await expect(harness.run(harness.providers[0]!.execute({ query: "q" }))).rejects.toThrow(
+      "You.com MCP error: Search failed upstream",
+    )
+  })
+
+  it("explains the keyless free tier when the request is rate limited", async () => {
+    const { harness } = await bindKeyless()
+    stubFetch(() => new Response("slow down", { status: 429, headers: { "Retry-After": "10" } }))
+
+    let caught: unknown
+    try {
+      await harness.run(harness.providers[0]!.execute({ query: "q" }))
+    } catch (e) {
+      caught = e
+    }
+
+    expect(caught).toBeInstanceOf(HttpClientError.HttpClientError)
+    const err = caught as HttpClientError.HttpClientError
+    expect(HttpClientError.isHttpClientError(err)).toBe(true)
+    expect(err.message).toContain("The keyless free tier is rate limited")
+    expect(err.message).toContain("connect You.com in /connect or set OSP_YDC_API_KEY")
   })
 })

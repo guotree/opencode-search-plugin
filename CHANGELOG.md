@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [4.7.1] - 2026-11-09
+
+### Added
+
+- You.com (`osp-youcom`, `plugins/youcom-search.ts`) keyless free tier via its
+  official hosted Model Context Protocol (MCP) server profile (`profile=free`).
+  When `OSP_YDC_API_KEY` is not configured, searches automatically route to
+  `https://api.you.com/mcp?profile=free` using Streamable HTTP tool calls
+  (`you-search`), enabling out-of-the-box search without registration or API key.
+  Configuring `OSP_YDC_API_KEY` in environment or `/connect` continues to route
+  to the dedicated commercial REST endpoint (`https://ydc-index.io/v1/search`).
+
 ## [4.7.0] - 2026-11-09
 
 ### Added
@@ -779,7 +791,8 @@ tested, documented repository installable as a package.
 - Plugin, provider, and integration IDs are unchanged, so existing
   `websearch.provider` configuration and `/connect` credentials keep working.
 
-[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.7.0...HEAD
+[Unreleased]: https://github.com/guotree/opencode-search-plugin/compare/v4.7.1...HEAD
+[4.7.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.7.0...v4.7.1
 [4.7.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.1...v4.7.0
 [4.6.1]: https://github.com/guotree/opencode-search-plugin/compare/v4.6.0...v4.6.1
 [4.6.0]: https://github.com/guotree/opencode-search-plugin/compare/v4.5.0...v4.6.0

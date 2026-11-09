@@ -40,7 +40,7 @@ These are copied verbatim. Edit them in every file that carries them, then updat
 | `parseSearchDate` and its tables | bocha, brave, deepseek, doubao, kagi, keenable, metaso, moonshot, moonshot-cn, perplexity, querit, serpapi, serper, stepfun, youcom, yuanbao, zai, zai-coding, zhipu, zhipu-coding | Relative and absolute date shapes, plus the `Date.parse` trap; Yuanbao accepts only explicitly zoned timestamps until its wall-clock timezone is confirmed |
 | `trimContent` | doubao, jina, linkup, moonshot, moonshot-cn, ollama, stepfun, zai-coding, zhipu-coding | Cut each hit's content to a `*_CONTENT_CHARS` budget before caching; counted in code points so no surrogate pair is split |
 | `soften` | all twenty-four | The host types the credential API's failure channel as `unknown` |
-| the `Effect.forkScoped` rebind subscription | all except anysearch, keenable | A rotated or deleted key must rebind the provider without a restart; the two keyless files bind at startup and never rebind. One failed rebind is warned about and retried by the next event -- the subscription itself must survive a host-side defect |
+| the `Effect.forkScoped` rebind subscription | all except anysearch, keenable, youcom | A rotated or deleted key must rebind the provider without a restart; the three keyless files bind at startup and never rebind. One failed rebind is warned about and retried by the next event -- the subscription itself must survive a host-side defect |
 | the marker-delimited Streamable HTTP MCP session client | zai-coding-search, zhipu-coding-search | One initialized session per cache miss, JSON/SSE framing, schema-driven arguments and best-effort cleanup. The block is compared byte-for-byte between the two files because no shared module may be imported |
 
 Files with no date field (anysearch, jina, linkup, ollama) must not carry `parseSearchDate`. The structure test asserts that too.
@@ -103,7 +103,7 @@ For live checks, have the test process inherit credentials or pass them internal
 | `test/serpapi-search.test.ts` | SerpApi's GET query construction, the GL/HL/TBS knobs, and the organic-results-only mapping |
 | `test/serper-search.test.ts` | Serper's POST body, the GL/HL/TBS filters riding in the body rather than the URL, the 1-100 clamp, and the organic-only mapping |
 | `test/stepfun-search.test.ts` | StepFun's request body and category validation, the snippet-by-default mapping, the code-point content cut, and the 401/402/451/429 reports |
-| `test/youcom-search.test.ts` | You.com's request body, the 1-100 count clamp, the extraction-mode shapes and fallback, and the web+news merge |
+| `test/youcom-search.test.ts` | You.com's request body, the keyless hosted MCP free tier routing and SSE parsing, the 1-100 count clamp, the extraction-mode shapes and fallback, and the web+news merge |
 | `test/yuanbao-search.test.ts` | Yuanbao's lite-compatible defaults, optional filters, environment fallback and key rotation, cancellation and response-body deadlines, JSON-string pages, malformed-row isolation, explicit-zone dates, HTTP 200 business errors, typed throttles and uncached policy refusals |
 | `test/request-lifecycle.test.ts` | Every provider's header/body deadlines, cancellation with no deadline, typed and uncached 429 errors, standard Retry-After, credential-free error metadata, damaged throttle bodies, and non-throttle status boundaries |
 | `test/zai-search.test.ts` | Z.ai's request body, the fixed `search-prime` engine, hit filtering, and the 401/429 reports |

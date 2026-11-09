@@ -1,5 +1,5 @@
 import { Plugin } from "@opencode/plugin/effect"
-import { Effect, Schema, Stream } from "effect"
+import { Effect, Schema } from "effect"
 import { HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 // You.com returns { results: { web, news }, metadata } with no body-level error
@@ -144,11 +144,14 @@ function boundDetail(detail: string): string {
   return points.slice(0, ERROR_DETAIL_CHARS).join("") + "… [truncated]"
 }
 
-
-// You.com is pay-as-you-go and has no anonymous tier: $5 per 1k searches, up
-// to 100 results per call. A repeat query is a fresh billed dispatch, so
-// responses are cached per normalized query. Knobs are read once at load time,
-// restart after changing them.
+// You.com has two tiers: a commercial pay-as-you-go REST API ($5 per 1k searches)
+// requiring an API key, and an official keyless free tier accessed via its hosted
+// Model Context Protocol (MCP) server (profile=free). With a key, requests route
+// to the commercial REST endpoint (ydc-index.io). Without a key, requests route
+// to the hosted MCP endpoint, providing daily free queries without registration.
+// A missing key therefore routes to the free tier rather than failing, which is
+// why this provider never gates on `bound`. Repeat queries are cached per
+// normalized query. Knobs are read once at load time, restart after changing them.
 //
 //   YOUCOM_CACHE_TTL     ms to reuse a response for the same query (0 disables)
 //   YOUCOM_COUNT         results per section (web and news each), clamped 1-100
@@ -160,7 +163,11 @@ function boundDetail(detail: string): string {
 //   YOUCOM_COUNTRY       geographic focus, e.g. "US", "CN"
 //   YOUCOM_FRESHNESS     "day" | "week" | "month" | "year" or "YYYY-MM-DDtoYYYY-MM-DD"
 //   YOUCOM_TIMEOUT       ms to wait before failing (0 removes the deadline)
-//   OSP_YDC_API_KEY          required; You.com's canonical env var, shared with its SDKs
+//   OSP_YDC_API_KEY      optional; You.com's canonical env var, shared with its SDKs.
+//                        When omitted, You.com uses the hosted MCP free tier.
+const SEARCH_URL = "https://ydc-index.io/v1/search"
+const FREE_MCP_URL = "https://api.you.com/mcp?profile=free"
+
 const CACHE_TTL = envInt("YOUCOM_CACHE_TTL", 600_000)
 // OpenCode's own providers each bounded themselves at 25s, and the host adds
 // no deadline of its own around `execute`, so this is the only one that exists.
@@ -262,6 +269,133 @@ function rateLimitError(
   })
 }
 
+function extractMcpMessage(msg: unknown): { result?: unknown; error?: string } {
+  if (typeof msg !== "object" || msg === null) return {}
+  const rec = msg as Record<string, unknown>
+
+  if (typeof rec.error === "object" && rec.error !== null) {
+    const err = rec.error as Record<string, unknown>
+    const errorMsg = typeof err.message === "string" ? err.message : JSON.stringify(err)
+    return { error: errorMsg }
+  }
+
+  if (
+    rec.method === "notifications/message" &&
+    typeof rec.params === "object" &&
+    rec.params !== null
+  ) {
+    const params = rec.params as Record<string, unknown>
+    if (params.level === "error" && typeof params.data === "string") {
+      return { error: params.data }
+    }
+  }
+
+  if (typeof rec.result === "object" && rec.result !== null) {
+    const result = rec.result as Record<string, unknown>
+    const isError = Boolean(result.isError)
+    if (Array.isArray(result.content)) {
+      for (const item of result.content) {
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          (item as Record<string, unknown>).type === "text" &&
+          typeof (item as Record<string, unknown>).text === "string"
+        ) {
+          const text = (item as Record<string, unknown>).text as string
+          if (isError) {
+            return { error: text }
+          }
+          try {
+            return { result: JSON.parse(text) }
+          } catch {
+            if (text.startsWith("Error:") || text.startsWith("Error ")) {
+              return { error: text }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (rec.results !== undefined) {
+    return { result: msg }
+  }
+
+  return {}
+}
+
+function formatMcpError(message: string): string {
+  const isRateLimit = /rate\s*limit|limit\s*exceeded|quota/i.test(message)
+  return (
+    "You.com MCP error: " +
+    message +
+    (isRateLimit
+      ? ". The keyless free tier is rate limited; connect You.com in /connect or set OSP_YDC_API_KEY to spend your own dedicated allowance."
+      : "")
+  )
+}
+
+function parseMcpResponse(raw: string): unknown {
+  try {
+    const direct: unknown = JSON.parse(raw)
+    const extracted = extractMcpMessage(direct)
+    if (extracted.result !== undefined) return extracted.result
+    if (extracted.error !== undefined) throw new Error(formatMcpError(extracted.error))
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("You.com MCP error:")) {
+      throw error
+    }
+  }
+
+  let eventData: string[] = []
+  let lastError: string | undefined
+
+  const processEvent = (dataLines: string[]) => {
+    if (dataLines.length === 0) return undefined
+    const payload = dataLines.join("\n").trim()
+    if (!payload) return undefined
+    try {
+      const msg: unknown = JSON.parse(payload)
+      const extracted = extractMcpMessage(msg)
+      if (extracted.result !== undefined) return extracted.result
+      if (extracted.error !== undefined) {
+        lastError = extracted.error
+      }
+    } catch {
+      // Ignore unparseable data chunks (heartbeats, comments)
+    }
+    return undefined
+  }
+
+  const lines = raw.split(/\r?\n/)
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed === "") {
+      const res = processEvent(eventData)
+      if (res !== undefined) return res
+      eventData = []
+      continue
+    }
+    if (trimmed.startsWith("data:")) {
+      eventData.push(trimmed.slice(5).replace(/^\s/, ""))
+    }
+  }
+
+  const trailing = processEvent(eventData)
+  if (trailing !== undefined) return trailing
+
+  if (lastError !== undefined) {
+    throw new Error(formatMcpError(lastError))
+  }
+
+  throw new Error("Invalid You.com MCP response: no search result found in payload")
+}
+
+// Unlike the key-requiring providers in this repo, You.com never gates on
+// `bound`: keyless access is a first-class mode via You.com's hosted MCP
+// free profile, so the provider is always in the pool. The key is still read
+// per call, which is why no credential-event subscription is needed -- a
+// rotated key takes effect on the next search without a reload.
 export const effect = (ctx: Plugin.Context) =>
   Effect.gen(function* () {
     // Make "You.com" show up in /connect with an API-key method.
@@ -287,24 +421,7 @@ export const effect = (ctx: Plugin.Context) =>
     const soften = <A>(read: Effect.Effect<A, unknown>): Effect.Effect<A | undefined, never> =>
       read.pipe(Effect.catch(() => Effect.succeed(undefined)))
 
-    // The key comes from the /connect credential, falling back to the
-    // environment. Resolved per call so a rotated key needs no restart.
-    const resolveKey = () =>
-      Effect.gen(function* () {
-        const connection = yield* soften(ctx.integration.connection.active(ID))
-        const credential = connection
-          ? yield* soften(ctx.integration.connection.resolve(connection))
-          : undefined
-        return credential?.type === "key" ? credential.key : process.env.OSP_YDC_API_KEY
-      })
-
-    // You.com is bound to websearch only while a key exists. Deleting the key
-    // unbinds the provider, so `random` can never pick a keyless You.com.
-    // The transform replays on reload and reads `bound` as it stands then.
-    let bound = Boolean(yield* resolveKey())
-
     yield* ctx.websearch.transform((editor) => {
-      if (!bound) return
       editor.add({
         id: ID,
         name: "You.com",
@@ -314,14 +431,14 @@ export const effect = (ctx: Plugin.Context) =>
             const cached = readCache(queryKey)
             if (cached) return cached
 
-            // Rechecked per call: binding can lag a key deletion by the
-            // event round-trip, so this keeps that window explicit.
-            const key = yield* resolveKey()
-            if (!key) {
-              return yield* Effect.fail(
-                new Error("Connect You.com in /connect, or set OSP_YDC_API_KEY"),
-              )
-            }
+            // Keyless access is a first-class mode: a missing key routes to the
+            // hosted MCP free tier instead of failing.
+            const connection = yield* soften(ctx.integration.connection.active(ID))
+            const credential = connection
+              ? yield* soften(ctx.integration.connection.resolve(connection))
+              : undefined
+            const key =
+              credential?.type === "key" ? credential.key : process.env.OSP_YDC_API_KEY
 
             const extraction =
               EXTRACTION === "highlights"
@@ -334,23 +451,53 @@ export const effect = (ctx: Plugin.Context) =>
                   : undefined
 
             return yield* withRequestSignal(SEARCH_TIMEOUT, (signal) => Effect.gen(function* () {
+              const endpoint = key ? SEARCH_URL : FREE_MCP_URL
+              const headers: Record<string, string> = {
+                Accept: key ? "application/json" : "application/json, text/event-stream",
+                "Content-Type": "application/json",
+              }
+              if (key) headers["X-API-Key"] = key
+
+              const bodyJson = key
+                ? JSON.stringify({
+                    query: queryKey,
+                    count: SEARCH_SIZE,
+                    ...(LANGUAGE ? { language: LANGUAGE } : {}),
+                    ...(COUNTRY ? { country: COUNTRY } : {}),
+                    ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
+                    ...(extraction ? { extraction } : {}),
+                  })
+                : JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "tools/call",
+                    params: {
+                      name: "you-search",
+                      arguments: {
+                        query: queryKey,
+                        count: SEARCH_SIZE,
+                        extraction: EXTRACTION,
+                        ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
+                      },
+                      ...(LANGUAGE || COUNTRY
+                        ? {
+                            _meta: {
+                              "com.you.com/search": {
+                                ...(LANGUAGE ? { language: LANGUAGE } : {}),
+                                ...(COUNTRY ? { country: COUNTRY } : {}),
+                              },
+                            },
+                          }
+                        : {}),
+                    },
+                  })
+
               const response = yield* Effect.tryPromise({
                 try: () =>
-                  fetch("https://ydc-index.io/v1/search", {
+                  fetch(endpoint, {
                     method: "POST",
-                    headers: {
-                      Accept: "application/json",
-                      "Content-Type": "application/json",
-                      "X-API-Key": key,
-                    },
-                    body: JSON.stringify({
-                      query: queryKey,
-                      count: SEARCH_SIZE,
-                      ...(LANGUAGE ? { language: LANGUAGE } : {}),
-                      ...(COUNTRY ? { country: COUNTRY } : {}),
-                      ...(FRESHNESS ? { freshness: FRESHNESS } : {}),
-                      ...(extraction ? { extraction } : {}),
-                    }),
+                    headers,
+                    body: bodyJson,
                     signal,
                   }),
                 catch: (error) =>
@@ -368,17 +515,32 @@ export const effect = (ctx: Plugin.Context) =>
                 }).pipe(Effect.catch((error) => response.status === 429
                   ? Effect.succeed("response body unavailable")
                   : Effect.fail(error)))
-                const message = "You.com API error " + response.status + ": " + boundDetail(detail)
+                const message =
+                  "You.com API error " +
+                  response.status +
+                  ": " +
+                  boundDetail(detail) +
+                  (key
+                    ? ""
+                    : ". The keyless free tier is rate limited; connect You.com in /connect or set OSP_YDC_API_KEY to spend your own dedicated allowance.")
                 return yield* Effect.fail(response.status === 429
-                  ? rateLimitError(response, "https://ydc-index.io/v1/search", "POST", message)
+                  ? rateLimitError(response, endpoint, "POST", message)
                   : new Error(message))
               }
 
               const json = yield* Effect.tryPromise({
-                try: () => response.json(),
+                try: async () => {
+                  if (key) {
+                    return await response.json()
+                  }
+                  const rawText = await response.text()
+                  return parseMcpResponse(rawText)
+                },
                 catch: (error) => ((error instanceof Error && error.name === "TimeoutError") || (signal.aborted && signal.reason?.name === "TimeoutError"))
                   ? new Error("You.com search timed out after " + SEARCH_TIMEOUT + "ms")
-                  : new Error("Invalid You.com response: " + String(error)),
+                  : (error instanceof Error && (error.message.startsWith("You.com ") || error instanceof HttpClientError.HttpClientError))
+                    ? error
+                    : new Error("Invalid You.com response: " + String(error)),
               })
 
               const body = yield* Schema.decodeUnknownEffect(YouResponse)(json)
@@ -391,63 +553,6 @@ export const effect = (ctx: Plugin.Context) =>
           }),
       })
     })
-
-    // Rebind on credential changes: connect, delete, or rotate a key and the
-    // provider joins or leaves the websearch pool without a restart. Env-var
-    // keys cannot change under a running process, so they bind at startup.
-    yield* Effect.forkScoped(
-      ctx.event.subscribe().pipe(
-        Stream.filter(
-          (event) =>
-            event.type === "credential.updated" ||
-            event.type === "credential.switched" ||
-            event.type === "integration.updated",
-        ),
-        Stream.mapEffect(() =>
-          // One failed rebind must not kill the subscription: the next
-          // credential event still has to reach the reload. `bound` moves
-          // before the reload so the transforms it replays build with the
-          // new state, and rolls back when the reload dies so the next
-          // event retries the binding instead of treating it as done. A
-          // defect is named on stderr and the stream moves on; an
-          // interruption is teardown rather than failure, and catchDefect
-          // propagates it untouched so shutdown never waits behind a warning.
-          Effect.gen(function* () {
-            const next = Boolean(yield* resolveKey())
-            if (next === bound) return
-            const previous = bound
-            bound = next
-            yield* Effect.suspend(() => ctx.websearch.reload()).pipe(
-              Effect.catchDefect((defect) =>
-                Effect.sync(() => {
-                  bound = previous
-                  console.warn(
-                    "[opencode-search-plugin] " +
-                      ID +
-                      " failed to rebind: " +
-                      (defect instanceof Error ? defect.message : String(defect)),
-                  )
-                }),
-              ),
-            )
-          }).pipe(
-            // The credential read can die on its own (a host-side throw
-            // before any reload); the subscription survives that too.
-            Effect.catchDefect((defect) =>
-              Effect.sync(() =>
-                console.warn(
-                  "[opencode-search-plugin] " +
-                    ID +
-                    " failed to rebind: " +
-                    (defect instanceof Error ? defect.message : String(defect)),
-                ),
-              ),
-            ),
-          ),
-        ),
-        Stream.runDrain,
-      ),
-    )
   })
 
 export default Plugin.define({ id: "youcom-search", effect })

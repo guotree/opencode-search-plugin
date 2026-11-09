@@ -27,7 +27,7 @@ afterEach(() => {
  * provider does beyond this is asserted in its own test file.
  */
 /** Providers with an anonymous tier, which never gate on a key. */
-const KEYLESS = new Set(["osp-anysearch", "osp-keenable"])
+const KEYLESS = new Set(["osp-anysearch", "osp-keenable", "osp-youcom"])
 
 /**
  * An MCP search spends four JSON-RPC requests plus a DELETE on a cache miss.
